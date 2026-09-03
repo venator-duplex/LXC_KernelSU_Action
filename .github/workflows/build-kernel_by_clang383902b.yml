@@ -109,11 +109,14 @@ jobs:
         curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s builtin
         echo "UPLOADNAME=-KernelSU" >> $GITHUB_ENV
 
-    - name: Disable susfs
+    - name: Disable SUSFS via config and clean
       run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        sed -i 's/CONFIG_KSU_SUSFS=y/CONFIG_KSU_SUSFS=n/' arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        sed -i 's/include <linux/susfs.h>/ /' drivers/kernelsu/kernel_includes.h
+        cd ${{ github.workspace }}/kernel_workspace/android-kernel
+        # 强制关闭 CONFIG_KSU_SUSFS
+        find . -name "*.config" -o -name "*defconfig" | while read f; do
+        sed -i 's/^CONFIG_KSU_SUSFS=y/# CONFIG_KSU_SUSFS is not set/' "$f"
+        sed -i '/^CONFIG_SUSFS=/d' "$f"
+        done
         
     - name: Setup Configuration for Kernel
       run: |

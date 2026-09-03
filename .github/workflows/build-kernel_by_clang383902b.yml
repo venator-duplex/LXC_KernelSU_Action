@@ -113,7 +113,7 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         sed -i 's/CONFIG_KSU_SUSFS=y/CONFIG_KSU_SUSFS=n/' arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        sed -i 's/include <linux/susfs.h>/#include <linux/susfs.h>/' drivers/kernelsu/kernel_includes.h
+        sed -i 's/include <linux/susfs.h>/ /' drivers/kernelsu/kernel_includes.h
         
     - name: Setup Configuration for Kernel
       run: |

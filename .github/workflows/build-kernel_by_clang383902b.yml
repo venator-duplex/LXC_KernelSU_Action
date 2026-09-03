@@ -106,7 +106,7 @@ jobs:
       if: env.ENABLE_KERNELSU == 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        curl -LSs https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh | bash -s v1.0.5-83-legacy
+        curl -LSs https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh | bash -s v3.3.0-30-legacy
         echo "UPLOADNAME=-KernelSU" >> $GITHUB_ENV
 
    # - name: Disable SUSFS and nullify all susfs_ calls

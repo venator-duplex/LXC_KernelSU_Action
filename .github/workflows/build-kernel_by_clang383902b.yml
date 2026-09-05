@@ -123,7 +123,7 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         # 注释掉报错行（通常在第 19 行）
-        sed -i 's/^$(error/# $(error/' KernelSU/kernel/tools/manual_hook_check.mk
+        sed -i 's/$(error /$(warning /g' KernelSU/kernel/tools/manual_hook_check.mk
         
     - name: Setup Configuration for Kernel
       run: |

@@ -115,8 +115,9 @@ jobs:
     - name: Setup Configuration for Kernel
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        sed -i '/^\s*u32 fpcr;$/a \    __uint128_t vregs[32];' arch/arm64/include/asm/fpsimd.h
-        sed -i '/fpcr;/a \    __uint128_t vregs[32];' arch/arm64/include/asm/fpsimd.h
+        if ! grep -q "vregs" arch/arm64/include/uapi/asm/sigcontext.h; then
+            sed -i '/^\s*u32 fpcr;$/a \    __uint128_t vregs[32];' arch/arm64/include/uapi/asm/sigcontext.h
+        fi
         if [ ${{ env.ADD_KPROBES_CONFIG }} = true ]; then
             echo "CONFIG_MODULES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "CONFIG_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}

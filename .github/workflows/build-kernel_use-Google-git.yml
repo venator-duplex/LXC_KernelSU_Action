@@ -114,7 +114,7 @@ jobs:
 
     - name: fix driver for redmi
       run: |
-        cd /home/runner/work/LXC_KernelSU_Action/LXC_KernelSU_Action/kernel_workspace/android-kernel
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         echo "=== 修复驱动文件中的未定义符号 ==="
         echo "--- 添加 panel_white_point 弱符号 ---"
         if ! grep -q "panel_white_point_x" drivers/gpu/drm/drm_sysfs.c; then

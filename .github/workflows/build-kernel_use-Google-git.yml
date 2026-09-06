@@ -115,10 +115,8 @@ jobs:
     - name: Setup Configuration for Kernel
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        sed -i 's/ctx->vregs/(void *)(ctx + 1)/g' arch/${{ env.ARCH }}/kernel/signal.c
-        sed -i 's/fpsimd->vregs/(void *)(fpsimd + 1)/g' arch/${{ env.ARCH }}/kernel/signal.c
-        sed -i 's/fpsimd\.vregs/(void *)(&fpsimd + 1)/g' arch/${{ env.ARCH }}/kernel/signal.c
-        sed -i 's/sizeof(fpsimd->vregs)/32 * sizeof(__uint128_t)/g' arch/${{ env.ARCH }}/kernel/signal.c
+        sed -i '/^\s*u32 fpcr;$/a \    __uint128_t vregs[32];' arch/arm64/include/asm/fpsimd.h
+        sed -i '/fpcr;/a \    __uint128_t vregs[32];' arch/arm64/include/asm/fpsimd.h
         if [ ${{ env.ADD_KPROBES_CONFIG }} = true ]; then
             echo "CONFIG_MODULES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "CONFIG_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}

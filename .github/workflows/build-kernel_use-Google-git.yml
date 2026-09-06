@@ -119,6 +119,26 @@ jobs:
         grep -n "ctx + 1" arch/arm64/kernel/signal.c
         sed -i 's/sizeof(key)\/sizeof(u32)/ARRAY_SIZE(key)/g' mm/hugetlb.c
         sed -i 's/ret = soc_aux_init_only_sia81xx(pdev, card);/\/\/ ret = soc_aux_init_only_sia81xx(pdev, card); ret = 0; \/\/ FIXME: disabled/g' sound/soc/mediatek/mt6833/mt6833-mt6359.c
+        cat >> drivers/gpu/drm/drm_sysfs.c <<'EOF'
+        unsigned int panel_white_point_x __attribute__((weak)) = 0;
+        unsigned int panel_white_point_y __attribute__((weak)) = 0;
+        unsigned int panel_white_point_lv __attribute__((weak)) = 0;
+        EOF
+        cat >> drivers/misc/mediatek/imgsensor/src/common/v1_1/imgsensor_hw_register_info.c <<'EOF'
+        int s5kjn1sunny_get_otpdata(char *buf, int i2c_id) __attribute__((weak)) { return 0; }
+        int ov50c40ofilm_get_otpdata(char *buf, int i2c_id) __attribute__((weak)) { return 0; }
+        int ov16a1qofilm_get_otpdata(char *buf, int i2c_id) __attribute__((weak)) { return 0; }
+        int ov16a1qqtech_get_otpdata(char *buf, int i2c_id) __attribute__((weak)) { return 0; }
+        int imx355sunny_get_otpdata(char *buf, int i2c_id) __attribute__((weak)) { return 0; }
+        int imx355ofilm_get_otpdata(char *buf, int i2c_id) __attribute__((weak)) { return 0; }
+        EOF
+        cat >> drivers/power/supply/mediatek/charger/mtk_switch_charging2.c <<'EOF'
+        int pdpm_is_charge_pump_enable(void) __attribute__((weak)) { return 0; }
+        EOF
+        cat >> drivers/leds/led-class.c <<'EOF'
+        int hbm_brightness_get(void) __attribute__((weak)) { return 0; }
+        int hbm_brightness_set(int level) __attribute__((weak)) { return 0; }
+        EOF
         if [ ${{ env.ADD_KPROBES_CONFIG }} = true ]; then
             echo "CONFIG_MODULES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "CONFIG_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}

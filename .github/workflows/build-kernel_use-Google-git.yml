@@ -115,52 +115,19 @@ jobs:
     - name: fix driver for redmi
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        echo "=== 修复驱动文件中的未定义符号 ==="
-        echo "--- 添加 panel_white_point 弱符号 ---"
-        if ! grep -q "panel_white_point_x" drivers/gpu/drm/drm_sysfs.c; then
-            cat >> drivers/gpu/drm/drm_sysfs.c <<'EOF'
+        cat >> drivers/gpu/drm/drm_sysfs.c <<'EOF'
         __attribute__((weak)) unsigned int panel_white_point_x = 0;
         __attribute__((weak)) unsigned int panel_white_point_y = 0;
         __attribute__((weak)) unsigned int panel_white_point_lv = 0;
         EOF
-            echo "已添加 panel_white_point 弱符号"
-        else
-            echo "panel_white_point 弱符号已存在，跳过"
-        fi
-        echo "--- 添加摄像头 OTP 弱符号 ---"
-        if ! grep -q "ov50c40ofilm_get_otpdata" drivers/misc/mediatek/imgsensor/src/common/v1_1/imgsensor_hw_register_info.c; then
-            cat >> drivers/misc/mediatek/imgsensor/src/common/v1_1/imgsensor_hw_register_info.c <<'EOF'
-        __attribute__((weak)) unsigned int s5kjn1sunny_get_otpdata(unsigned char *data, u16 i2cId) { return 0; }
+        cat >> drivers/misc/mediatek/imgsensor/src/common/v1_1/imgsensor_hw_register_info.c <<'EOF'
         __attribute__((weak)) unsigned int ov50c40ofilm_get_otpdata(unsigned char *data, u16 i2cId) { return 0; }
         __attribute__((weak)) unsigned int ov16a1qofilm_get_otpdata(unsigned char *data, u16 i2cId) { return 0; }
-        __attribute__((weak)) unsigned int ov16a1qqtech_get_otpdata(unsigned char *data, u16 i2cId) { return 0; }
-        __attribute__((weak)) unsigned int imx355sunny_get_otpdata(unsigned char *data, u16 i2cId) { return 0; }
-        __attribute__((weak)) unsigned int imx355ofilm_get_otpdata(unsigned char *data, u16 i2cId) { return 0; }
         EOF
-            echo "已添加摄像头 OTP 弱符号"
-        else
-            echo "摄像头 OTP 弱符号已存在，跳过"
-        fi
-        echo "--- 添加 pdpm_is_charge_pump_enable 弱符号 ---"
-        if ! grep -q "pdpm_is_charge_pump_enable" drivers/power/supply/mediatek/charger/mtk_switch_charging2.c; then
-            cat >> drivers/power/supply/mediatek/charger/mtk_switch_charging2.c <<'EOF'
-        __attribute__((weak)) int pdpm_is_charge_pump_enable(void) { return 0; }
-        EOF
-            echo "已添加 pdpm_is_charge_pump_enable 弱符号"
-        else
-            echo "pdpm_is_charge_pump_enable 弱符号已存在，跳过"
-        fi
-        echo "--- 添加 hbm_brightness 弱符号 ---"
-        if ! grep -q "hbm_brightness_get" drivers/leds/led-class.c; then
-            cat >> drivers/leds/led-class.c <<'EOF'
+        cat >> drivers/leds/led-class.c <<'EOF'
         __attribute__((weak)) int hbm_brightness_get(void) { return 0; }
         __attribute__((weak)) int hbm_brightness_set(int level) { return 0; }
         EOF
-            echo "已添加 hbm_brightness 弱符号"
-        else
-            echo "hbm_brightness 弱符号已存在，跳过"
-        fi
-            echo "=== 驱动文件修复完成 ==="
   
 
     - name: Setup Configuration for Kernel

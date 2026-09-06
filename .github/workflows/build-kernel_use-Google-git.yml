@@ -117,6 +117,7 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         sed -i 's/ctx->vregs/(void *)(ctx + 1)/g' arch/arm64/kernel/signal.c
         grep -n "ctx + 1" arch/arm64/kernel/signal.c
+        sed -i 's/sizeof(key)\/sizeof(u32)/ARRAY_SIZE(key)/g' mm/hugetlb.c
         if [ ${{ env.ADD_KPROBES_CONFIG }} = true ]; then
             echo "CONFIG_MODULES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "CONFIG_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}

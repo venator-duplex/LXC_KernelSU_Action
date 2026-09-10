@@ -115,10 +115,10 @@ jobs:
     - name: Setup Configuration for Kernel
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        #sed -i 's/ctx->vregs/(void *)(ctx + 1)/g' arch/arm64/kernel/signal.c
-        #grep -n "ctx + 1" arch/arm64/kernel/signal.c
-        #sed -i 's/sizeof(key)\/sizeof(u32)/ARRAY_SIZE(key)/g' mm/hugetlb.c
-        #sed -i 's/ret = soc_aux_init_only_sia81xx(pdev, card);/\/\/ ret = soc_aux_init_only_sia81xx(pdev, card); ret = 0; \/\/ FIXME: disabled/g' sound/soc/mediatek/mt6833/mt6833-mt6359.c
+        sed -i 's/ctx->vregs/(void *)(ctx + 1)/g' arch/arm64/kernel/signal.c
+        grep -n "ctx + 1" arch/arm64/kernel/signal.c
+        sed -i 's/sizeof(key)\/sizeof(u32)/ARRAY_SIZE(key)/g' mm/hugetlb.c
+        sed -i 's/ret = soc_aux_init_only_sia81xx(pdev, card);/\/\/ ret = soc_aux_init_only_sia81xx(pdev, card); ret = 0; \/\/ FIXME: disabled/g' sound/soc/mediatek/mt6833/mt6833-mt6359.c
         if [ ${{ env.ADD_KPROBES_CONFIG }} = true ]; then
             echo "CONFIG_MODULES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "CONFIG_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}

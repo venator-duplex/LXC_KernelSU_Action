@@ -112,33 +112,6 @@ jobs:
         curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s ${{ env.KERNELSU_TAG }}
         echo "UPLOADNAME=-KernelSU" >> $GITHUB_ENV
 
-    #- name: fix driver for redmi
-      #run: |
-        #cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        cat >> drivers/gpu/drm/drm_sysfs.c <<'EOF'
-        __attribute__((weak)) unsigned int panel_white_point_x = 0;
-        __attribute__((weak)) unsigned int panel_white_point_y = 0;
-        __attribute__((weak)) unsigned int panel_white_point_lv = 0;
-        EOF
-        cat >> drivers/misc/mediatek/imgsensor/src/common/v1_1/imgsensor_hw_register_info.c <<'EOF'
-        __attribute__((weak)) unsigned int ov50c40ofilm_get_otpdata(unsigned char *data, u16 i2cId) { return 0; }
-        __attribute__((weak)) unsigned int ov16a1qofilm_get_otpdata(unsigned char *data, u16 i2cId) { return 0; }
-        EOF
-        cat >> drivers/leds/led-class.c <<'EOF'
-        __attribute__((weak)) int hbm_brightness_get(void) { return 0; }
-        __attribute__((weak)) int hbm_brightness_set(int level) { return 0; }
-        EOF
-        cat >> drivers/misc/mediatek/imgsensor/src/common/v1_1/imgsensor_hw_register_info.c <<'EOF'
-        __attribute__((weak)) unsigned int s5kjn1sunny_get_otpdata(unsigned char *data, u16 i2cId) { return 0; }
-        __attribute__((weak)) unsigned int ov16a1qqtech_get_otpdata(unsigned char *data, u16 i2cId) { return 0; }
-        __attribute__((weak)) unsigned int imx355sunny_get_otpdata(unsigned char *data, u16 i2cId) { return 0; }
-        __attribute__((weak)) unsigned int imx355ofilm_get_otpdata(unsigned char *data, u16 i2cId) { return 0; }
-        EOF
-        cat >> drivers/power/supply/mediatek/charger/mtk_switch_charging2.c <<'EOF'
-        __attribute__((weak)) int pdpm_is_charge_pump_enable(void) { return 0; }
-        #EOF
-  
-
     - name: Setup Configuration for Kernel
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel

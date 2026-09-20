@@ -115,6 +115,11 @@ jobs:
     - name: Setup Configuration for Kernel
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        mkdir -p drivers/mihw
+        cat > drivers/mihw/Makefile <<'EOF'
+        # Placeholder Makefile to bypass missing Xiaomi mihw driver
+        obj-y :=
+        EOF
         if [ ${{ env.ADD_KPROBES_CONFIG }} = true ]; then
             echo "CONFIG_MODULES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "CONFIG_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}

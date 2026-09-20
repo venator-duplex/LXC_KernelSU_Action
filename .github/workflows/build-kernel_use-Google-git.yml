@@ -120,6 +120,8 @@ jobs:
         # Placeholder Makefile to bypass missing Xiaomi mihw driver
         obj-y :=
         EOF
+        sed -i 's/CONFIG_FRAME_WARN=.*/CONFIG_FRAME_WARN=8192/' arch/arm64/configs/light_defconfig
+        grep -q "CONFIG_FRAME_WARN" arch/arm64/configs/light_defconfig || echo 'CONFIG_FRAME_WARN=8192' >> arch/arm64/configs/light_defconfig
         if [ ${{ env.ADD_KPROBES_CONFIG }} = true ]; then
             echo "CONFIG_MODULES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "CONFIG_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}

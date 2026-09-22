@@ -118,6 +118,10 @@ jobs:
         # Placeholder Makefile to bypass missing Xiaomi mihw driver
         obj-y :=
         EOF
+        sed -i 's/^# CONFIG_KSU_MANUAL_HOOK is not set/CONFIG_KSU_MANUAL_HOOK=y/' "$DEFCONFIG"
+        grep -q "CONFIG_KSU_MANUAL_HOOK" "$DEFCONFIG" || echo 'CONFIG_KSU_MANUAL_HOOK=y' >> "$DEFCONFIG"
+        sed -i 's/^CONFIG_KSU_TRACEPOINT_HOOK=y/# CONFIG_KSU_TRACEPOINT_HOOK is not set/' "$DEFCONFIG"
+        grep -q "CONFIG_KSU_TRACEPOINT_HOOK" "$DEFCONFIG" || echo '# CONFIG_KSU_TRACEPOINT_HOOK is not set' >> "$DEFCONFIG"
         sed -i 's/CONFIG_FRAME_WARN=.*/CONFIG_FRAME_WARN=8192/' arch/arm64/configs/light_defconfig
         grep -q "CONFIG_FRAME_WARN" arch/arm64/configs/light_defconfig || echo 'CONFIG_FRAME_WARN=8192' >> arch/arm64/configs/light_defconfig
         if [ ${{ env.ADD_KPROBES_CONFIG }} = true ]; then

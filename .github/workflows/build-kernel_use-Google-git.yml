@@ -96,8 +96,9 @@ jobs:
 
     - name: fix wifi problem
       run: |
+        #!/bin/bash
         # ============================================================
-        # MTK Connectivity 模块自动集成脚本（直接指定 light_defconfig）
+        # MTK Connectivity 模块自动集成脚本（自动修正 WIFI_IP_SET）
         # 适用平台: MT6833 (Redmi Note 11E)
         # 内核版本: 4.19.x (非 GKI)
         # ============================================================
@@ -142,11 +143,36 @@ jobs:
         mkdir -p "$(dirname "$CONNECTIVITY_DEST")"
         git clone --depth=1 -b "$CONNECTIVITY_BRANCH" "$CONNECTIVITY_REPO" "$CONNECTIVITY_DEST"
         
-        # ---- 4. 追加必要的 defconfig 配置 ----
+        # ---- 4. 自动修正 Makefile 中的 WIFI_IP_SET ----
+        echo ""
+        echo "=== 修正 connectivity Makefile 中的 WIFI_IP_SET 配置 ==="
+        
+        CONNECTIVITY_MAKEFILE="$CONNECTIVITY_DEST/Makefile"
+        
+        if [ ! -f "$CONNECTIVITY_MAKEFILE" ]; then
+            echo "错误: 未找到 $CONNECTIVITY_MAKEFILE"
+            exit 1
+        fi
+        
+        # 精准匹配 WLAN_IP_SET_3_SERIES 这一行，并在末尾追加 6833
+        if grep -q "WLAN_IP_SET_3_SERIES := 6779 6873 6853" "$CONNECTIVITY_MAKEFILE"; then
+            sed -i 's/WLAN_IP_SET_3_SERIES := 6779 6873 6853/WLAN_IP_SET_3_SERIES := 6779 6873 6853 6833/' "$CONNECTIVITY_MAKEFILE"
+            echo "已修改: WLAN_IP_SET_3_SERIES 已添加 6833"
+        else
+            echo "警告: 未找到预期的 WLAN_IP_SET_3_SERIES 行，请手动检查 $CONNECTIVITY_MAKEFILE"
+        fi
+        
+        # 验证修改结果
+        echo "修改后内容:"
+        grep "WLAN_IP_SET_3_SERIES" "$CONNECTIVITY_MAKEFILE"
+        
+        # ---- 5. 追加必要的 defconfig 配置 ----
         echo ""
         echo "=== 向 $DEFCONFIG_FILE 追加 WiFi 相关配置 ==="
         
         declare -a CONFIG_ITEMS=(
+            "CONFIG_MTK_COMBO=y"
+            "CONFIG_MTK_COMBO_CHIP_CONSYS_6833=y"
             "CONFIG_MTK_COMBO_BT=y"
             "CONFIG_MTK_COMBO_WIFI=y"
             "CONFIG_MTK_COMBO_GPS=y"

@@ -109,18 +109,11 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         sed -i "s/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/g" arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
+        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s v1.0.8
       
     - name: Setup Configuration for Kernel
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        sed -i 's/^CONFIG_KSU_MANUAL_HOOK=.*/CONFIG_KSU_MANUAL_HOOK=y/' arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        sed -i 's/^CONFIG_KSU_MANUAL_HOOK=.*/CONFIG_KSU_MANUAL_HOOK=y/' arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        sed -i 's/^# CONFIG_KSU_MANUAL_HOOK is not set/CONFIG_KSU_MANUAL_HOOK=y/' arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        grep -q "^CONFIG_KSU_MANUAL_HOOK=y" "$DEFCONFIG" || echo "CONFIG_KSU_MANUAL_HOOK=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        sed -i 's/^CONFIG_KSU_KPROBES_HOOK=y/# CONFIG_KSU_KPROBES_HOOK is not set/' arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        sed -i 's/^CONFIG_KSU_KPROBES_HOOK=.*/# CONFIG_KSU_KPROBES_HOOK is not set/' arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        grep -q "CONFIG_KSU_KPROBES_HOOK" "$DEFCONFIG" || echo "# CONFIG_KSU_KPROBES_HOOK is not set" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
         mkdir -p drivers/mihw
         cat > drivers/mihw/Makefile <<'EOF'
         # Placeholder Makefile to bypass missing Xiaomi mihw driver

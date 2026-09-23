@@ -110,6 +110,8 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         sed -i "s/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/g" arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
+        curl -LSs "https://raw.githubusercontent.com/rsuntkOrgs/KSU-Hook/master/4.19.diff" -o ksu_hook.diff
+        git apply ksu_hook.diff
         
     - name: Setup Configuration for Kernel
       run: |

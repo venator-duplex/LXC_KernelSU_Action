@@ -94,16 +94,88 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone ${{ env.KERNEL_SOURCE }} -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
 
-    - name: Download source boot image
-      if: env.BUILD_BOOT_IMG == 'true'
+    - name: fix wifi problem
       run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        wget -O boot-source.img ${{ env.SOURCE_BOOT_IMAGE }}
-        if [ -f boot-source.img ]; then
-            echo "FORMAT_MKBOOTING=$(echo `tools/unpack_bootimg.py --boot_img=boot-source.img --format mkbootimg`)" >> $GITHUB_ENV
-            echo "HAVE_SOURCE_BOOT_IMAGE=true" >> $GITHUB_ENV
+        # ============================================================
+        # MTK Connectivity 模块自动集成脚本（直接指定 light_defconfig）
+        # 适用平台: MT6833 (Redmi Note 11E)
+        # 内核版本: 4.19.x (非 GKI)
+        # ============================================================
+        
+        set -e
+        
+        # ---- 1. 精准定位内核目录 ----
+        if [ -n "$GITHUB_WORKSPACE" ]; then
+            KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
+        else
+            KERNEL_DIR="$(pwd)/kernel_workspace/android-kernel"
         fi
-  
+        
+        echo "=== 内核目录: $KERNEL_DIR ==="
+        if [ ! -f "$KERNEL_DIR/Makefile" ]; then
+            echo "错误: 未找到 $KERNEL_DIR/Makefile，请检查路径。"
+            exit 1
+        fi
+        
+        # ---- 2. 直接指定 light_defconfig ----
+        DEFCONFIG_FILE="$KERNEL_DIR/arch/arm64/configs/light_defconfig"
+        
+        if [ ! -f "$DEFCONFIG_FILE" ]; then
+            echo "错误: 未找到 $DEFCONFIG_FILE"
+            exit 1
+        fi
+        
+        echo "=== 使用 defconfig: $DEFCONFIG_FILE ==="
+        
+        # ---- 3. 克隆 MTK Connectivity 模块 ----
+        CONNECTIVITY_REPO="https://github.com/rsuntk-oss/mtk_connectivity_module.git"
+        CONNECTIVITY_BRANCH="staging-4.19"
+        CONNECTIVITY_DEST="$KERNEL_DIR/vendor/mediatek/kernel_modules/connectivity"
+        
+        echo ""
+        echo "=== 清理旧的 connectivity 目录 ==="
+        if [ -d "$CONNECTIVITY_DEST" ]; then
+            rm -rf "$CONNECTIVITY_DEST"
+        fi
+        
+        echo "=== 克隆 connectivity 模块到: $CONNECTIVITY_DEST ==="
+        mkdir -p "$(dirname "$CONNECTIVITY_DEST")"
+        git clone --depth=1 -b "$CONNECTIVITY_BRANCH" "$CONNECTIVITY_REPO" "$CONNECTIVITY_DEST"
+        
+        # ---- 4. 追加必要的 defconfig 配置 ----
+        echo ""
+        echo "=== 向 $DEFCONFIG_FILE 追加 WiFi 相关配置 ==="
+        
+        declare -a CONFIG_ITEMS=(
+            "CONFIG_MTK_COMBO_BT=y"
+            "CONFIG_MTK_COMBO_WIFI=y"
+            "CONFIG_MTK_COMBO_GPS=y"
+            "CONFIG_MTK_GPS_SUPPORT=y"
+            "CONFIG_MTK_FMRADIO=y"
+            "CONFIG_DRV_BUILD_IN=y"
+        )
+        
+        for item in "${CONFIG_ITEMS[@]}"; do
+            key=$(echo "$item" | cut -d'=' -f1)
+            if grep -q "^${key}=" "$DEFCONFIG_FILE" || grep -q "^# ${key} is not set" "$DEFCONFIG_FILE"; then
+                echo "已存在: $key -> 跳过"
+            else
+                echo "$item" >> "$DEFCONFIG_FILE"
+                echo "已追加: $item"
+            fi
+        done
+        
+        echo ""
+        echo "=== 集成完成 ==="
+        echo "后续步骤:"
+        echo "  1. 进入内核目录: cd $KERNEL_DIR"
+        echo "  2. 重新编译内核"
+        echo "  3. 刷入新内核后，删除设备中的旧模块文件以避免冲突:"
+        echo "     adb shell su -c \"mv /vendor/lib/modules/wlan_drv_gen4m.ko /vendor/lib/modules/wlan_drv_gen4m.ko.bak\""
+        echo "     adb shell su -c \"mv /vendor/lib/modules/bt_drv_connac1x.ko /vendor/lib/modules/bt_drv_connac1x.ko.bak\""
+        echo ""
+        echo "如果刷入后卡开机 (Bootloop)，请通过 Recovery 删除上述 .ko 文件。"
+          
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'
       run: |

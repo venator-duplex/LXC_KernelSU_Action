@@ -111,6 +111,27 @@ jobs:
         curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
         echo "UPLOADNAME=-KernelSU" >> $GITHUB_ENV
 
+    - name: setup DroidSpace
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        sed -i \
+        -e 's/# CONFIG_SYSVIPC is not set/CONFIG_SYSVIPC=y/' \
+        -e 's/# CONFIG_POSIX_MQUEUE is not set/CONFIG_POSIX_MQUEUE=y/' \
+        -e 's/# CONFIG_PID_NS is not set/CONFIG_PID_NS=y/' \
+        -e 's/# CONFIG_UTS_NS is not set/CONFIG_UTS_NS=y/' \
+        -e 's/# CONFIG_IPC_NS is not set/CONFIG_IPC_NS=y/' \
+        -e 's/# CONFIG_USER_NS is not set/CONFIG_USER_NS=y/' \
+        -e 's/# CONFIG_CGROUP_DEVICE is not set/CONFIG_CGROUP_DEVICE=y/' \
+        -e 's/# CONFIG_CGROUP_PIDS is not set/CONFIG_CGROUP_PIDS=y/' \
+        -e 's/# CONFIG_CGROUP_NET_PRIO is not set/CONFIG_CGROUP_NET_PRIO=y/' \
+        -e 's/# CONFIG_CGROUP_NET_CLASSID is not set/CONFIG_CGROUP_NET_CLASSID=y/' \
+        -e 's/# CONFIG_DEVTMPFS is not set/CONFIG_DEVTMPFS=y/' \
+        -e 's/# CONFIG_VETH is not set/CONFIG_VETH=y/' \
+        -e 's/# CONFIG_BRIDGE_NETFILTER is not set/CONFIG_BRIDGE_NETFILTER=y/' \
+        -e 's/# CONFIG_NF_TABLES is not set/CONFIG_NF_TABLES=y/' \
+        -e 's/# CONFIG_NETFILTER_XT_MATCH_ADDRTYPE is not set/CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y/' \
+        arch/arm64/configs/cepheus_defconfig
+
     - name: Setup Configuration for Kernel
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel

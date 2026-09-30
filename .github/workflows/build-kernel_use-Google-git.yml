@@ -161,8 +161,28 @@ jobs:
         fi
 
         echo "=== defconfig 中 CMDLINE 相关配置 ==="
-        grep -n "CMDLINE" "${DEFCONFIG}"       
-   
+        grep -n "CMDLINE" "${DEFCONFIG}"  
+
+    - name: Place Connectivity Modules at Expected Path
+      run: |
+        set -e
+    
+        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
+        PARENT_DIR="$(dirname "${KERNEL_DIR}")"
+        TARGET_DIR="${PARENT_DIR}/vendor/mediatek/kernel_modules/connectivity"
+    
+        echo "=== 创建 MTK 驱动期望的路径 ==="
+        mkdir -p "${TARGET_DIR}"
+    
+        echo "=== 复制 connectivity 内容到目标路径 ==="
+        cp -r connectivity-modules/connectivity/. "${TARGET_DIR}/"
+    
+        echo "=== 验证目标路径内容 ==="
+        ls -la "${TARGET_DIR}/"
+    
+        echo "=== 验证 wlan/core/gen4m 是否存在 ==="
+        ls -la "${TARGET_DIR}/wlan/core/gen4m/" | head -20
+       
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'
       run: |

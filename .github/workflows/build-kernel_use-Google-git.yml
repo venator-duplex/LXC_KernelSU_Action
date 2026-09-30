@@ -130,7 +130,7 @@ jobs:
       run: |
         set -e
     
-        KERNEL_DIR="kernel-source"
+        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
         DEFCONFIG="${KERNEL_DIR}/arch/arm64/configs/light_defconfig"
     
         echo "=== 追加 WiFi 和固件相关配置 ==="

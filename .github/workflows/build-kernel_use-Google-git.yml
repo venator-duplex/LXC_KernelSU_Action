@@ -145,57 +145,61 @@ jobs:
     - name: Place Connectivity Modules at Expected Path
       run: |
         set -e
-    
+
         KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
         PARENT_DIR="$(dirname "${KERNEL_DIR}")"
         TARGET_DIR="${PARENT_DIR}/vendor/mediatek/kernel_modules/connectivity"
         CONNECTIVITY_DIR="${KERNEL_DIR}/drivers/misc/mediatek/connectivity"
-    
+
         echo "=== 创建 MTK 驱动期望的路径 ==="
         mkdir -p "${TARGET_DIR}"
-    
+
         echo "=== 复制 connectivity 内容到目标路径 ==="
         cp -r connectivity-modules/connectivity/. "${TARGET_DIR}/"
-    
+
+        echo "=== 检查目标路径结构 ==="
+        ls -la "${TARGET_DIR}/"
+        echo "--- wlan 目录 ---"
+        ls -la "${TARGET_DIR}/wlan/" 2>/dev/null || echo "wlan 目录不存在"
+        echo "--- wlan/core 目录 ---"
+        ls -la "${TARGET_DIR}/wlan/core/" 2>/dev/null || echo "wlan/core 目录不存在"
+
         echo "=== 在 connectivity 目录下创建符号链接 ==="
-        # 清理可能存在的旧链接
         rm -f "${CONNECTIVITY_DIR}/wmt_drv"
         rm -f "${CONNECTIVITY_DIR}/wmt_chrdev_wifi"
         rm -f "${CONNECTIVITY_DIR}/wlan_drv_gen4m"
-    
-        # 创建符号链接，指向外部驱动源码
-        ln -sf "${TARGET_DIR}/common"          "${CONNECTIVITY_DIR}/wmt_drv"
-        ln -sf "${TARGET_DIR}/wlan/adaptor"    "${CONNECTIVITY_DIR}/wmt_chrdev_wifi"
-        ln -sf "${TARGET_DIR}/wlan/core/gen4m" "${CONNECTIVITY_DIR}/wlan_drv_gen4m"
-    
+
+        # 根据实际目录结构创建链接
+        if [ -d "${TARGET_DIR}/common" ]; then
+            ln -sf "${TARGET_DIR}/common" "${CONNECTIVITY_DIR}/wmt_drv"
+        fi
+        if [ -d "${TARGET_DIR}/wlan/adaptor" ]; then
+            ln -sf "${TARGET_DIR}/wlan/adaptor" "${CONNECTIVITY_DIR}/wmt_chrdev_wifi"
+        fi
+        if [ -d "${TARGET_DIR}/wlan/core/gen4m" ]; then
+            ln -sf "${TARGET_DIR}/wlan/core/gen4m" "${CONNECTIVITY_DIR}/wlan_drv_gen4m"
+        fi
+
         echo "=== 验证链接 ==="
-        ls -la "${CONNECTIVITY_DIR}/" | grep -E "wmt_drv|wmt_chrdev_wifi|wlan_drv_gen4m"
-        ls -la "${CONNECTIVITY_DIR}/wlan_drv_gen4m/" | head -5
+        ls -la "${CONNECTIVITY_DIR}/" | grep -E "wmt_drv|wmt_chrdev_wifi|wlan_drv_gen4m" || echo "链接未创建，请检查目录结构"
+        echo "--- wlan_drv_gen4m 内容 ---"
+        ls -la "${CONNECTIVITY_DIR}/wlan_drv_gen4m/" | head -20 2>/dev/null || echo "wlan_drv_gen4m 链接无效"
 
     - name: Patch Connectivity Makefile
       run: |
         set -e
 
         KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
-        PARENT_DIR="$(dirname "${KERNEL_DIR}")"
-        DRIVER_BASE="${PARENT_DIR}/vendor/mediatek/kernel_modules/connectivity"
-        MAKEFILE="${KERNEL_DIR}/drivers/misc/mediatek/connectivity/Makefile"
+        CONNECTIVITY_DIR="${KERNEL_DIR}/drivers/misc/mediatek/connectivity"
+        MAKEFILE="${CONNECTIVITY_DIR}/Makefile"
 
-        echo "=== 验证驱动源码路径 ==="
-        ls -la "${DRIVER_BASE}/wlan/core/gen4m/" | head -5
+        echo "=== 备份原始 Makefile ==="
+        cp "${MAKEFILE}" "${MAKEFILE}.bak" 2>/dev/null || true
 
-        python3 - <<'PYEOF'
-        import os
-        
-        kernel_dir = os.environ.get("KERNEL_DIR", "")
-        if not kernel_dir:
-            kernel_dir = os.path.join(os.environ["GITHUB_WORKSPACE"], "kernel_workspace", "android-kernel")
-        parent_dir = os.path.dirname(kernel_dir)
-        driver_base = os.path.join(parent_dir, "vendor", "mediatek", "kernel_modules", "connectivity")
-        makefile = os.path.join(kernel_dir, "drivers", "misc", "mediatek", "connectivity", "Makefile")
-        
+        echo "=== 写入补丁后的 Makefile ==="
+        cat > "${MAKEFILE}" <<'MAKEFILE_EOF'
         # Connectivity combo driver Makefile (patched for CI build)
-
+        
         ifneq ($(KERNELRELEASE),)
             subdir-ccflags-y += -I$(srctree)/
             subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include
@@ -234,7 +238,6 @@ jobs:
                 subdir-ccflags-y += -D MTK_WCN_REMOVE_KERNEL_MODULE
                 subdir-ccflags-y += -D MTK_WCN_BUILT_IN_DRIVER
         
-                # 使用相对路径，依赖符号链接
                 obj-y += wmt_drv/
                 obj-y += wmt_chrdev_wifi/
                 obj-y += wlan_drv_gen4m/
@@ -246,17 +249,12 @@ jobs:
         default:
         	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
         endif
-        """
+        MAKEFILE_EOF
         
-        with open(makefile, "w") as f:
-            f.write(content)
-        
-        print("Makefile 写入完成")
-        PYEOF
-        
-                echo "=== 覆盖后的 Makefile 关键部分 ==="
+                echo "=== Makefile 写入完成，关键行如下 ==="
                 grep -n "obj-y +=" "${MAKEFILE}"
                 grep -n "wmt_drv\|wmt_chrdev_wifi\|wlan_drv_gen4m" "${MAKEFILE}"
+    
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'
       run: |

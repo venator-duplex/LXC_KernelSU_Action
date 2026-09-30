@@ -94,45 +94,42 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone ${{ env.KERNEL_SOURCE }} -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
 
-    - name: Checkout Connectivity Modules
+       - name: Checkout Connectivity Modules
       uses: actions/checkout@v4
       with:
         repository: MiCode/MTK_kernel_modules
         ref: light-u-oss
         path: connectivity-modules
 
-    - name: Inject MTK Connectivity Drivers into Kernel Tree
+    - name: Place Connectivity Modules at Expected Path
       run: |
         set -e
-    
+
+        # 你的真实内核目录
         KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
-        SRC_DIR="connectivity-modules/connectivity"
-        DST_DIR="${KERNEL_DIR}/drivers/misc/mediatek/connectivity"
-    
-        echo "=== 复制前，内核树 connectivity 目录内容 ==="
-        ls -la "${DST_DIR}/"
-    
-        echo "=== 复制缺失的驱动目录（跳过 common） ==="
-        for dir in bt connfem conninfra fmradio gps wlan; do
-          if [ -d "${SRC_DIR}/${dir}" ]; then
-            echo "复制 ${dir}/ ..."
-            rm -rf "${DST_DIR}/${dir}"
-            cp -r "${SRC_DIR}/${dir}" "${DST_DIR}/${dir}"
-          else
-            echo "警告: ${SRC_DIR}/${dir} 不存在，跳过"
-          fi
-        done
-    
-        echo "=== 复制后，内核树 connectivity 目录内容 ==="
-        ls -la "${DST_DIR}/"
-    
-    - name: Configure Kernel for WiFi Firmware Path and Built-in Firmware
+        PARENT_DIR="$(dirname "${KERNEL_DIR}")"
+        TARGET_DIR="${PARENT_DIR}/vendor/mediatek/kernel_modules/connectivity"
+
+        echo "=== 创建 MTK 驱动期望的路径 ==="
+        mkdir -p "${TARGET_DIR}"
+
+        echo "=== 复制 connectivity 内容到目标路径 ==="
+        cp -r connectivity-modules/connectivity/. "${TARGET_DIR}/"
+
+        echo "=== 验证目标路径内容 ==="
+        ls -la "${TARGET_DIR}/"
+
+        echo "=== 验证内核树 connectivity 目录（应该是原来的内容） ==="
+        ls -la "${KERNEL_DIR}/drivers/misc/mediatek/connectivity/"
+
+    - name: Configure Kernel for WiFi Firmware Path
       run: |
         set -e
-    
+
+        # 你的真实内核目录
         KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
         DEFCONFIG="${KERNEL_DIR}/arch/arm64/configs/light_defconfig"
-    
+
         echo "=== 追加 WiFi 和固件相关配置 ==="
         for cfg in \
           "CONFIG_MTK_COMBO=y" \
@@ -147,103 +144,24 @@ jobs:
             echo "已追加: ${cfg}"
           fi
         done
-    
+
         echo "=== 添加 firmware_class.path 启动参数 ==="
-        # 检查 CONFIG_CMDLINE 是否存在，并追加 firmware_class.path
         if grep -q "^CONFIG_CMDLINE=" "${DEFCONFIG}"; then
-          # 如果已有 CONFIG_CMDLINE，在其末尾追加参数
           sed -i 's/^CONFIG_CMDLINE="\(.*\)"/CONFIG_CMDLINE="\1 firmware_class.path=\/vendor\/firmware"/' "${DEFCONFIG}"
           echo "已在现有 CONFIG_CMDLINE 中追加 firmware_class.path"
         else
-          # 如果没有，则添加一行
           echo 'CONFIG_CMDLINE="firmware_class.path=/vendor/firmware"' >> "${DEFCONFIG}"
           echo "已添加新的 CONFIG_CMDLINE"
         fi
-    
-        # 确保 CONFIG_CMDLINE_OVERRIDE 或 CONFIG_CMDLINE_EXTEND 设置正确
-        # 如果使用 EXTEND，参数会追加到默认 cmdline 后面
+
         if ! grep -q "^CONFIG_CMDLINE_EXTEND=y" "${DEFCONFIG}"; then
           echo "CONFIG_CMDLINE_EXTEND=y" >> "${DEFCONFIG}"
           echo "已启用 CONFIG_CMDLINE_EXTEND"
         fi
-    
+
         echo "=== defconfig 中 CMDLINE 相关配置 ==="
-        grep -n "CMDLINE" "${DEFCONFIG}"
-    
-        echo "=== defconfig 中固件相关配置 ==="
-        grep -n "FIRMWARE" "${DEFCONFIG}"
-
-    - name: Copy Connectivity Module into Kernel Tree
-      run: |
-        cp -r connectivity-modules/connectivity/* $GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/connectivity/
-    
-    - name: Patch gl_kal.c to Prioritize Actual Firmware Filename
-      run: |
-        set -e
-    
-        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
-        GL_KAL="${KERNEL_DIR}/drivers/misc/mediatek/connectivity/wlan/core/gen4-mt79xx/os/linux/gl_kal.c"
-    
-        if [ ! -f "${GL_KAL}" ]; then
-          echo "错误: ${GL_KAL} 不存在！"
-          echo "请确认驱动源码路径是否正确。"
-          exit 1
-        fi
-    
-        echo "=== 修改前，固件名相关代码 ==="
-        grep -n -A 20 "apucNameTable" "${GL_KAL}" | head -40
-    
-        # 用 Python 精确插入我们的固件文件名到尝试列表最前面
-        python3 - <<'PYEOF'
-        path = "$GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/connectivity/wlan/core/gen4-mt79xx/os/linux/gl_kal.c"
-    
-        with open(path, "r") as f:
-            content = f.read()
-    
-        # 在 apucNameTable 数组定义的开头插入我们的固件文件名
-        # 需要根据实际代码结构调整，这里假设数组定义形如：
-        # static const char *apucNameTable[] = {
-        #     ...
-        # };
-        import re
-    
-        pattern = re.compile(
-            r'(apucNameTable\s*\[\s*\]\s*=\s*\{)',
-            re.DOTALL
-        )
-    
-        # 在数组开头插入我们的文件名
-        our_fw = '\n    "WIFI_RAM_CODE_soc2_2_1_1.bin",\n    "WIFI_RAM_CODE_soc2_2_1a_1.bin",'
-    
-        def repl(m):
-            return m.group(1) + our_fw
-    
-        new_content, count = pattern.subn(repl, content, count=1)
-    
-        if count == 0:
-            print("警告: 未找到 apucNameTable 数组，尝试其他方式...")
-            # 备选方案：在 request_firmware 调用前插入
-            # 这里先不做复杂处理，直接提示
-            print("请手动检查 gl_kal.c 中的固件名构造逻辑")
-        else:
-            with open(path, "w") as f:
-                f.write(new_content)
-            print("已成功插入固件文件名到 apucNameTable 数组开头")
-    
-        # 同时检查并输出所有与固件名相关的行，便于验证
-        with open(path, "r") as f:
-            for i, line in enumerate(f, 1):
-                if "WIFI_RAM_CODE" in line or "apucNameTable" in line:
-                    print(f"{i}: {line.rstrip()}")
-        PYEOF
-    
-        echo "=== 修改后，固件名相关代码 ==="
-        grep -n -A 20 "apucNameTable" "${GL_KAL}" | head -40
-
-    - name: Search firmware name in driver source
-      run: |
-        grep -rn "WIFI_RAM_CODE\|request_firmware" $GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/connectivity/wlan/ | head -30
-          
+        grep -n "CMDLINE" "${DEFCONFIG}"       
+   
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'
       run: |

@@ -172,6 +172,69 @@ jobs:
     
         echo "=== defconfig 中固件相关配置 ==="
         grep -n "FIRMWARE" "${DEFCONFIG}"
+
+    - name: Patch gl_kal.c to Prioritize Actual Firmware Filename
+      run: |
+        set -e
+    
+        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
+        GL_KAL="${KERNEL_DIR}/drivers/misc/mediatek/connectivity/wlan/core/gen4-mt79xx/os/linux/gl_kal.c"
+    
+        if [ ! -f "${GL_KAL}" ]; then
+          echo "错误: ${GL_KAL} 不存在！"
+          echo "请确认驱动源码路径是否正确。"
+          exit 1
+        fi
+    
+        echo "=== 修改前，固件名相关代码 ==="
+        grep -n -A 20 "apucNameTable" "${GL_KAL}" | head -40
+    
+        # 用 Python 精确插入我们的固件文件名到尝试列表最前面
+        python3 - <<'PYEOF'
+        path = "$GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/connectivity/wlan/core/gen4-mt79xx/os/linux/gl_kal.c"
+    
+        with open(path, "r") as f:
+            content = f.read()
+    
+        # 在 apucNameTable 数组定义的开头插入我们的固件文件名
+        # 需要根据实际代码结构调整，这里假设数组定义形如：
+        # static const char *apucNameTable[] = {
+        #     ...
+        # };
+        import re
+    
+        pattern = re.compile(
+            r'(apucNameTable\s*\[\s*\]\s*=\s*\{)',
+            re.DOTALL
+        )
+    
+        # 在数组开头插入我们的文件名
+        our_fw = '\n    "WIFI_RAM_CODE_soc2_2_1_1.bin",\n    "WIFI_RAM_CODE_soc2_2_1a_1.bin",'
+    
+        def repl(m):
+            return m.group(1) + our_fw
+    
+        new_content, count = pattern.subn(repl, content, count=1)
+    
+        if count == 0:
+            print("警告: 未找到 apucNameTable 数组，尝试其他方式...")
+            # 备选方案：在 request_firmware 调用前插入
+            # 这里先不做复杂处理，直接提示
+            print("请手动检查 gl_kal.c 中的固件名构造逻辑")
+        else:
+            with open(path, "w") as f:
+                f.write(new_content)
+            print("已成功插入固件文件名到 apucNameTable 数组开头")
+    
+        # 同时检查并输出所有与固件名相关的行，便于验证
+        with open(path, "r") as f:
+            for i, line in enumerate(f, 1):
+                if "WIFI_RAM_CODE" in line or "apucNameTable" in line:
+                    print(f"{i}: {line.rstrip()}")
+        PYEOF
+    
+        echo "=== 修改后，固件名相关代码 ==="
+        grep -n -A 20 "apucNameTable" "${GL_KAL}" | head -40
     
     - name: Copy Connectivity Module into Kernel Tree
       run: |

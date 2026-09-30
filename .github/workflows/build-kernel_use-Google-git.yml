@@ -173,6 +173,10 @@ jobs:
         echo "=== defconfig 中固件相关配置 ==="
         grep -n "FIRMWARE" "${DEFCONFIG}"
 
+    - name: Copy Connectivity Module into Kernel Tree
+      run: |
+        cp -r connectivity-modules/connectivity/* $GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/connectivity/
+    
     - name: Patch gl_kal.c to Prioritize Actual Firmware Filename
       run: |
         set -e
@@ -235,10 +239,6 @@ jobs:
     
         echo "=== 修改后，固件名相关代码 ==="
         grep -n -A 20 "apucNameTable" "${GL_KAL}" | head -40
-    
-    - name: Copy Connectivity Module into Kernel Tree
-      run: |
-        cp -r connectivity-modules/connectivity/* $GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/connectivity/
 
     - name: Search firmware name in driver source
       run: |

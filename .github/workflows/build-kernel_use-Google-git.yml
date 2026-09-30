@@ -101,8 +101,8 @@ jobs:
         ref: light-u-oss
         path: $GITHUB_WORKSPACE/repo-modules
 
-     - name: Copy Connectivity Module into Kernel Tree
-       run: |
+    - name: Copy Connectivity Module into Kernel Tree
+      run: |
         cp -r $GITHUB_WORKSPACE/repo-modules/connectivity/* kernel-source/drivers/misc/mediatek/connectivity/
           
     - name: Setup KernelSU

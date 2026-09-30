@@ -103,7 +103,7 @@ jobs:
 
     - name: Copy Connectivity Module into Kernel Tree
       run: |
-        cp -r repo-modules/connectivity/* $GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/
+        cp -r repo-modules/connectivity/* $GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/connectivity/
           
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'

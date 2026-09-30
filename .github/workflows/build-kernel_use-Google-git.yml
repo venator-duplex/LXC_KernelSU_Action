@@ -162,74 +162,87 @@ jobs:
         echo "=== 验证 wlan/core/gen4m 是否存在 ==="
         ls -la "${TARGET_DIR}/wlan/core/gen4m/" | head -20
 
-        - name: Patch Connectivity Makefile
-          run: |
-            set -e
-    
-            KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
-            PARENT_DIR="$(dirname "${KERNEL_DIR}")"
-            DRIVER_BASE="${PARENT_DIR}/vendor/mediatek/kernel_modules/connectivity"
-            MAKEFILE="${KERNEL_DIR}/drivers/misc/mediatek/connectivity/Makefile"
-    
-            echo "=== 验证驱动源码路径 ==="
-            ls -la "${DRIVER_BASE}/wlan/core/" | head -10
-            ls -la "${DRIVER_BASE}/common/" | head -5
-    
-            echo "=== 直接覆盖整个 Makefile ==="
-            cat > "${MAKEFILE}" <<'MAKEFILE_EOF'
-            # Connectivity combo driver Makefile (patched for CI build)
-            
-            ifneq ($(KERNELRELEASE),)
-                subdir-ccflags-y += -I$(srctree)/
-                subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include
-                subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/clkbuf/src
-                subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include/clkbuf_v1/$(MTK_PLATFORM)
-                subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
-                subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat
-                subdir-ccflags-y += -I$(srctree)/drivers/mmc/core
-                subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/eccci/$(MTK_PLATFORM)
-                subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/eccci/
-                subdir-ccflags-y += -I$(srctree)/drivers/clk/mediatek/
-                subdir-ccflags-y += -I$(srctree)/drivers/pinctrl/mediatek/
-                subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/power_throttling/
-            
-                MODULE_NAME := connadp
-                obj-$(CONFIG_MTK_COMBO) += $(MODULE_NAME).o
-            
-                $(MODULE_NAME)-objs += common/connectivity_build_in_adapter.o
-                $(MODULE_NAME)-objs += common/wmt_build_in_adapter.o
-                $(MODULE_NAME)-objs += power_throttling/adapter.o
-                $(MODULE_NAME)-objs += power_throttling/core.o
-            
-                ifeq ($(CONFIG_MTK_COMBO), y)
-                    ccflags-y += -D CFG_CONNADP_BUILD_IN
-                endif
-            
-                ifeq ($(CONFIG_WLAN_DRV_BUILD_IN),y)
-                    export CONFIG_MTK_COMBO_WIFI_HIF=axi
-                    export MTK_COMBO_CHIP=CONNAC
-                    export WLAN_CHIP_ID=6833
-                    export MTK_ANDROID_WMT=y
-            
-                    subdir-ccflags-y += -D MTK_WCN_REMOVE_KERNEL_MODULE
-                    subdir-ccflags-y += -D MTK_WCN_BUILT_IN_DRIVER
-            
-                    obj-y += $(DRIVER_BASE)/wmt_drv/
-                    obj-y += $(DRIVER_BASE)/wmt_chrdev_wifi/
-                    obj-y += $(DRIVER_BASE)/wlan_drv_gen4m/
-                endif
-            
-            else
-                KERNELDIR ?= /lib/modules/$(shell uname -r)/build
-                PWD  := $(shell pwd)
-            default:
-            	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
+    - name: Patch Connectivity Makefile
+      run: |
+        set -e
+
+        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
+        PARENT_DIR="$(dirname "${KERNEL_DIR}")"
+        DRIVER_BASE="${PARENT_DIR}/vendor/mediatek/kernel_modules/connectivity"
+        MAKEFILE="${KERNEL_DIR}/drivers/misc/mediatek/connectivity/Makefile"
+
+        echo "=== 验证驱动源码路径 ==="
+        ls -la "${DRIVER_BASE}/wlan/core/gen4m/" | head -5
+
+        python3 - <<'PYEOF'
+        import os
+        
+        kernel_dir = os.environ.get("KERNEL_DIR", "")
+        if not kernel_dir:
+            kernel_dir = os.path.join(os.environ["GITHUB_WORKSPACE"], "kernel_workspace", "android-kernel")
+        parent_dir = os.path.dirname(kernel_dir)
+        driver_base = os.path.join(parent_dir, "vendor", "mediatek", "kernel_modules", "connectivity")
+        makefile = os.path.join(kernel_dir, "drivers", "misc", "mediatek", "connectivity", "Makefile")
+        
+        content = f"""# Connectivity combo driver Makefile (patched for CI build)
+        
+        ifneq ($(KERNELRELEASE),)
+            subdir-ccflags-y += -I$(srctree)/
+            subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include
+            subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/clkbuf/src
+            subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include/clkbuf_v1/$(MTK_PLATFORM)
+            subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
+            subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat
+            subdir-ccflags-y += -I$(srctree)/drivers/mmc/core
+            subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/eccci/$(MTK_PLATFORM)
+            subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/eccci/
+            subdir-ccflags-y += -I$(srctree)/drivers/clk/mediatek/
+            subdir-ccflags-y += -I$(srctree)/drivers/pinctrl/mediatek/
+            subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/power_throttling/
+        
+            MODULE_NAME := connadp
+            obj-$(CONFIG_MTK_COMBO) += $(MODULE_NAME).o
+        
+            $(MODULE_NAME)-objs += common/connectivity_build_in_adapter.o
+            $(MODULE_NAME)-objs += common/wmt_build_in_adapter.o
+            $(MODULE_NAME)-objs += power_throttling/adapter.o
+            $(MODULE_NAME)-objs += power_throttling/core.o
+        
+            ifeq ($(CONFIG_MTK_COMBO), y)
+                ccflags-y += -D CFG_CONNADP_BUILD_IN
             endif
-            MAKEFILE_EOF
-            
-                    echo "=== 覆盖后的 Makefile 内容 ==="
-                    cat "${MAKEFILE}"
-       
+        
+            ifeq ($(CONFIG_WLAN_DRV_BUILD_IN),y)
+                export CONFIG_MTK_COMBO_WIFI_HIF=axi
+                export MTK_COMBO_CHIP=CONNAC
+                export WLAN_CHIP_ID=6833
+                export MTK_ANDROID_WMT=y
+        
+                subdir-ccflags-y += -D MTK_WCN_REMOVE_KERNEL_MODULE
+                subdir-ccflags-y += -D MTK_WCN_BUILT_IN_DRIVER
+        
+                obj-y += {driver_base}/wmt_drv/
+                obj-y += {driver_base}/wmt_chrdev_wifi/
+                obj-y += {driver_base}/wlan_drv_gen4m/
+            endif
+        
+        else
+            KERNELDIR ?= /lib/modules/$(shell uname -r)/build
+            PWD  := $(shell pwd)
+        default:
+        	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
+        endif
+        """
+        
+        with open(makefile, "w") as f:
+            f.write(content)
+        
+        print("Makefile 写入完成")
+        PYEOF
+        
+                echo "=== 覆盖后的 Makefile 关键部分 ==="
+                grep -n "obj-y +=" "${MAKEFILE}"
+                grep -n "wmt_drv\|wmt_chrdev_wifi\|wlan_drv_gen4m" "${MAKEFILE}"
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'
       run: |

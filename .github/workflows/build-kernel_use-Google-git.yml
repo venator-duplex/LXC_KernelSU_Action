@@ -99,11 +99,11 @@ jobs:
       with:
         repository: MiCode/MTK_kernel_modules
         ref: light-u-oss
-        path: $GITHUB_WORKSPACE/repo-modules
+        path: repo-modules
 
       - name: Copy Connectivity Module into Kernel Tree
         run: |
-          cp -r $GITHUB_WORKSPACE/repo-modules/connectivity/* kernel-source/drivers/misc/mediatek/connectivity/
+          cp -r repo-modules/connectivity/* kernel-source/drivers/misc/mediatek/connectivity/
           
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'

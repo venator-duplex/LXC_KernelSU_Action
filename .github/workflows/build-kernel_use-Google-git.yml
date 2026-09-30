@@ -93,6 +93,13 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone ${{ env.KERNEL_SOURCE }} -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
+
+    - name: Checkout Connectivity Modules
+      uses: actions/checkout@v4
+      with:
+        repository: MiCode/MTK_kernel_modules
+        ref: light-u-oss
+        path: $GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/connectivity
           
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'
@@ -104,13 +111,13 @@ jobs:
     - name: Setup Configuration for Kernel
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        #mkdir -p drivers/mihw
-        #cat > drivers/mihw/Makefile <<'EOF'
+        mkdir -p drivers/mihw
+        cat > drivers/mihw/Makefile <<'EOF'
         # Placeholder Makefile to bypass missing Xiaomi mihw driver
-        #obj-y :=
-        #EOF
-        #sed -i 's/CONFIG_FRAME_WARN=.*/CONFIG_FRAME_WARN=8192/' arch/arm64/configs/light_defconfig
-        #grep -q "CONFIG_FRAME_WARN" arch/arm64/configs/light_defconfig || echo 'CONFIG_FRAME_WARN=8192' >> arch/arm64/configs/light_defconfig
+        obj-y :=
+        EOF
+        sed -i 's/CONFIG_FRAME_WARN=.*/CONFIG_FRAME_WARN=8192/' arch/arm64/configs/light_defconfig
+        grep -q "CONFIG_FRAME_WARN" arch/arm64/configs/light_defconfig || echo 'CONFIG_FRAME_WARN=8192' >> arch/arm64/configs/light_defconfig
         if [ ${{ env.ADD_KPROBES_CONFIG }} = true ]; then
             echo "CONFIG_MODULES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
             echo "CONFIG_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}

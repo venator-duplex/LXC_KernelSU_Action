@@ -149,6 +149,7 @@ jobs:
         KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
         PARENT_DIR="$(dirname "${KERNEL_DIR}")"
         TARGET_DIR="${PARENT_DIR}/vendor/mediatek/kernel_modules/connectivity"
+        CONNECTIVITY_DIR="${KERNEL_DIR}/drivers/misc/mediatek/connectivity"
     
         echo "=== 创建 MTK 驱动期望的路径 ==="
         mkdir -p "${TARGET_DIR}"
@@ -156,11 +157,20 @@ jobs:
         echo "=== 复制 connectivity 内容到目标路径 ==="
         cp -r connectivity-modules/connectivity/. "${TARGET_DIR}/"
     
-        echo "=== 验证目标路径内容 ==="
-        ls -la "${TARGET_DIR}/"
+        echo "=== 在 connectivity 目录下创建符号链接 ==="
+        # 清理可能存在的旧链接
+        rm -f "${CONNECTIVITY_DIR}/wmt_drv"
+        rm -f "${CONNECTIVITY_DIR}/wmt_chrdev_wifi"
+        rm -f "${CONNECTIVITY_DIR}/wlan_drv_gen4m"
     
-        echo "=== 验证 wlan/core/gen4m 是否存在 ==="
-        ls -la "${TARGET_DIR}/wlan/core/gen4m/" | head -20
+        # 创建符号链接，指向外部驱动源码
+        ln -sf "${TARGET_DIR}/common"          "${CONNECTIVITY_DIR}/wmt_drv"
+        ln -sf "${TARGET_DIR}/wlan/adaptor"    "${CONNECTIVITY_DIR}/wmt_chrdev_wifi"
+        ln -sf "${TARGET_DIR}/wlan/core/gen4m" "${CONNECTIVITY_DIR}/wlan_drv_gen4m"
+    
+        echo "=== 验证链接 ==="
+        ls -la "${CONNECTIVITY_DIR}/" | grep -E "wmt_drv|wmt_chrdev_wifi|wlan_drv_gen4m"
+        ls -la "${CONNECTIVITY_DIR}/wlan_drv_gen4m/" | head -5
 
     - name: Patch Connectivity Makefile
       run: |
@@ -184,7 +194,7 @@ jobs:
         driver_base = os.path.join(parent_dir, "vendor", "mediatek", "kernel_modules", "connectivity")
         makefile = os.path.join(kernel_dir, "drivers", "misc", "mediatek", "connectivity", "Makefile")
         
-        content = f"""# Connectivity combo driver Makefile (patched for CI build)
+        # Connectivity combo driver Makefile (patched for CI build)
 
         ifneq ($(KERNELRELEASE),)
             subdir-ccflags-y += -I$(srctree)/
@@ -224,9 +234,10 @@ jobs:
                 subdir-ccflags-y += -D MTK_WCN_REMOVE_KERNEL_MODULE
                 subdir-ccflags-y += -D MTK_WCN_BUILT_IN_DRIVER
         
-                obj-y += {driver_base}/wmt_drv/
-                obj-y += {driver_base}/wmt_chrdev_wifi/
-                obj-y += {driver_base}/wlan_drv_gen4m/
+                # 使用相对路径，依赖符号链接
+                obj-y += wmt_drv/
+                obj-y += wmt_chrdev_wifi/
+                obj-y += wlan_drv_gen4m/
             endif
         
         else

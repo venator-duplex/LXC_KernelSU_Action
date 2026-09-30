@@ -138,6 +138,7 @@ jobs:
           "CONFIG_WLAN_DRV_BUILD_IN=y" \
           "CONFIG_MTK_COMBO_COMM=y" \
           "CONFIG_MTK_COMBO_COMM_SDIO=y"
+          "CONFIG_WLAN_DRV_BUILD_IN=y"
         do
           if ! grep -q "^${cfg}$" "${DEFCONFIG}"; then
             echo "${cfg}" >> "${DEFCONFIG}"

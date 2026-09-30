@@ -321,6 +321,11 @@ jobs:
     - name: Build kernel
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        export CONFIG_WLAN_DRV_BUILD_IN=y
+        export MTK_PLATFORM=mt6833   # 请替换为你实际的目标平台，如 mt6771, mt6785 等
+        export MTK_COMBO_CHIP=CONNAC
+        export WLAN_CHIP_ID=6833      # 请替换为你实际的芯片ID
+        export MTK_ANDROID_WMT=y
         #export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang-aosp/bin:$PATH
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang-aosp/clang-${{ env.CLANG_VERSION }}/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-32/bin:$PATH
         export KBUILD_BUILD_HOST=Github-Action

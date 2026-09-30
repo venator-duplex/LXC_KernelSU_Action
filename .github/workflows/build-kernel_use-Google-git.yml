@@ -101,11 +101,11 @@ jobs:
         ref: light-u-oss
         path: connectivity-modules
 
-    - name: Inject MTK Connectivity Drivers
+    - name: Inject MTK Connectivity Drivers into Kernel Tree
       run: |
         set -e
     
-        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
+        KERNEL_DIR="kernel-source"
         SRC_DIR="connectivity-modules/connectivity"
         DST_DIR="${KERNEL_DIR}/drivers/misc/mediatek/connectivity"
     
@@ -126,9 +126,52 @@ jobs:
         echo "=== 复制后，内核树 connectivity 目录内容 ==="
         ls -la "${DST_DIR}/"
     
-        echo "=== 检查 Makefile 和 Kconfig 中 WiFi 相关引用 ==="
-        grep -n -i "wlan" "${DST_DIR}/Makefile" || echo "Makefile 中未找到 wlan 引用"
-        grep -n -i "wlan" "${DST_DIR}/Kconfig" || echo "Kconfig 中未找到 wlan 引用"
+    - name: Configure Kernel for WiFi Firmware Path and Built-in Firmware
+      run: |
+        set -e
+    
+        KERNEL_DIR="kernel-source"
+        DEFCONFIG="${KERNEL_DIR}/arch/arm64/configs/light_defconfig"
+    
+        echo "=== 追加 WiFi 和固件相关配置 ==="
+        for cfg in \
+          "CONFIG_MTK_COMBO=y" \
+          "CONFIG_MTK_COMBO_CHIP_CONSYS_6833=y" \
+          "CONFIG_MTK_COMBO_WIFI=y" \
+          "CONFIG_WLAN_DRV_BUILD_IN=y" \
+          "CONFIG_MTK_COMBO_COMM=y" \
+          "CONFIG_MTK_COMBO_COMM_SDIO=y"
+        do
+          if ! grep -q "^${cfg}$" "${DEFCONFIG}"; then
+            echo "${cfg}" >> "${DEFCONFIG}"
+            echo "已追加: ${cfg}"
+          fi
+        done
+    
+        echo "=== 添加 firmware_class.path 启动参数 ==="
+        # 检查 CONFIG_CMDLINE 是否存在，并追加 firmware_class.path
+        if grep -q "^CONFIG_CMDLINE=" "${DEFCONFIG}"; then
+          # 如果已有 CONFIG_CMDLINE，在其末尾追加参数
+          sed -i 's/^CONFIG_CMDLINE="\(.*\)"/CONFIG_CMDLINE="\1 firmware_class.path=\/vendor\/firmware"/' "${DEFCONFIG}"
+          echo "已在现有 CONFIG_CMDLINE 中追加 firmware_class.path"
+        else
+          # 如果没有，则添加一行
+          echo 'CONFIG_CMDLINE="firmware_class.path=/vendor/firmware"' >> "${DEFCONFIG}"
+          echo "已添加新的 CONFIG_CMDLINE"
+        fi
+    
+        # 确保 CONFIG_CMDLINE_OVERRIDE 或 CONFIG_CMDLINE_EXTEND 设置正确
+        # 如果使用 EXTEND，参数会追加到默认 cmdline 后面
+        if ! grep -q "^CONFIG_CMDLINE_EXTEND=y" "${DEFCONFIG}"; then
+          echo "CONFIG_CMDLINE_EXTEND=y" >> "${DEFCONFIG}"
+          echo "已启用 CONFIG_CMDLINE_EXTEND"
+        fi
+    
+        echo "=== defconfig 中 CMDLINE 相关配置 ==="
+        grep -n "CMDLINE" "${DEFCONFIG}"
+    
+        echo "=== defconfig 中固件相关配置 ==="
+        grep -n "FIRMWARE" "${DEFCONFIG}"
     
     - name: Copy Connectivity Module into Kernel Tree
       run: |

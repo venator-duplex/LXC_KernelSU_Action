@@ -99,8 +99,104 @@ jobs:
       with:
         repository: MiCode/MTK_kernel_modules
         ref: light-u-oss
-        path: repo-modules
-
+        path: connectivity-modules
+    
+    - name: Inject MTK Connectivity Driver into Kernel Tree
+      run: |
+        set -e
+    
+        KERNEL_DIR="kernel-source"
+        SRC_DIR="connectivity-modules/connectivity"
+        DST_DIR="${KERNEL_DIR}/drivers/misc/mediatek/connectivity"
+    
+        echo "=== 1. 复制 common 和 power_throttling ==="
+        cp -r "${SRC_DIR}/common/." "${DST_DIR}/common/"
+        cp -r "${SRC_DIR}/power_throttling/." "${DST_DIR}/power_throttling/"
+    
+        echo "=== 2. 复制 WiFi 驱动核心 ==="
+        # 根据 Makefile 里的路径推断，驱动核心在 wlan/ 下
+        if [ -d "${SRC_DIR}/wlan/adaptor" ]; then
+          mkdir -p "${DST_DIR}/wmt_chrdev_wifi"
+          cp -r "${SRC_DIR}/wlan/adaptor/." "${DST_DIR}/wmt_chrdev_wifi/"
+        fi
+    
+        if [ -d "${SRC_DIR}/wlan/core/gen4m" ]; then
+          mkdir -p "${DST_DIR}/wlan_drv_gen4m"
+          cp -r "${SRC_DIR}/wlan/core/gen4m/." "${DST_DIR}/wlan_drv_gen4m/"
+        fi
+    
+        # wmt_drv 对应 common 目录本身
+        mkdir -p "${DST_DIR}/wmt_drv"
+        cp -r "${SRC_DIR}/common/." "${DST_DIR}/wmt_drv/"
+    
+        echo "=== 3. 修改 Makefile，绕过符号链接 ==="
+        MAKEFILE="${DST_DIR}/Makefile"
+    
+        # 用 Python 做精确替换，避免 sed 转义问题
+        python3 - <<'PYEOF'
+        import re
+    
+        path = "kernel-source/drivers/misc/mediatek/connectivity/Makefile"
+        with open(path, "r") as f:
+            content = f.read()
+    
+        # 把整个 ifeq ($(CONFIG_WLAN_DRV_BUILD_IN),y) ... endif 块
+        # 替换成直接编译本地目录的版本
+        pattern = re.compile(
+            r"ifeq \(\$\(CONFIG_WLAN_DRV_BUILD_IN\),y\).*?endif",
+            re.DOTALL
+        )
+    
+        replacement = """ifeq ($(CONFIG_WLAN_DRV_BUILD_IN),y)
+            # CI 环境：驱动源码已直接复制到本地目录，无需符号链接
+            export CONFIG_MTK_COMBO_WIFI_HIF=axi
+            export MTK_COMBO_CHIP=CONNAC
+            export WLAN_CHIP_ID=6765
+            export MTK_ANDROID_WMT=y
+    
+            subdir-ccflags-y += -D MTK_WCN_REMOVE_KERNEL_MODULE
+            subdir-ccflags-y += -D MTK_WCN_BUILT_IN_DRIVER
+    
+            obj-y += wmt_drv/
+            obj-y += wmt_chrdev_wifi/
+            obj-y += wlan_drv_gen4m/
+        endif"""
+    
+        content = pattern.sub(replacement, content, count=1)
+    
+        with open(path, "w") as f:
+            f.write(content)
+    
+        print("Makefile 修改完成")
+        PYEOF
+    
+        echo "=== 4. 确认 defconfig 里 WiFi 配置已开启 ==="
+        DEFCONFIG="${KERNEL_DIR}/arch/arm64/configs/light_defconfig"
+    
+        for cfg in \
+          "CONFIG_MTK_COMBO=y" \
+          "CONFIG_MTK_COMBO_CHIP_CONSYS_6833=y" \
+          "CONFIG_MTK_COMBO_WIFI=y" \
+          "CONFIG_WLAN_DRV_BUILD_IN=y" \
+          "CONFIG_MTK_COMBO_COMM=y" \
+          "CONFIG_MTK_COMBO_COMM_SDIO=y"
+        do
+          if ! grep -q "^${cfg}$" "${DEFCONFIG}"; then
+            echo "${cfg}" >> "${DEFCONFIG}"
+            echo "已追加: ${cfg}"
+          fi
+        done
+    
+        echo "=== 5. 验证注入结果 ==="
+        echo "connectivity 目录内容："
+        ls -la "${DST_DIR}/"
+        echo ""
+        echo "wlan_drv_gen4m 目录内容（前 10 项）："
+        ls "${DST_DIR}/wlan_drv_gen4m/" | head -10
+        echo ""
+        echo "Makefile 关键部分："
+        grep -A 12 "CONFIG_WLAN_DRV_BUILD_IN" "${MAKEFILE}" | head -20
+        
     - name: Copy Connectivity Module into Kernel Tree
       run: |
         cp -r repo-modules/connectivity/* $GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/connectivity/
@@ -180,7 +276,6 @@ jobs:
     - name: Build kernel
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        git status
         #export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang-aosp/bin:$PATH
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang-aosp/clang-${{ env.CLANG_VERSION }}/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-32/bin:$PATH
         export KBUILD_BUILD_HOST=Github-Action

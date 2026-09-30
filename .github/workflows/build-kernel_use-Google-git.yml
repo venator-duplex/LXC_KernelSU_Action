@@ -101,27 +101,6 @@ jobs:
         ref: light-u-oss
         path: connectivity-modules
 
-    - name: Place Connectivity Modules at Expected Path
-      run: |
-        set -e
-
-        # 你的真实内核目录
-        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
-        PARENT_DIR="$(dirname "${KERNEL_DIR}")"
-        TARGET_DIR="${PARENT_DIR}/vendor/mediatek/kernel_modules/connectivity"
-
-        echo "=== 创建 MTK 驱动期望的路径 ==="
-        mkdir -p "${TARGET_DIR}"
-
-        echo "=== 复制 connectivity 内容到目标路径 ==="
-        cp -r connectivity-modules/connectivity/. "${TARGET_DIR}/"
-
-        echo "=== 验证目标路径内容 ==="
-        ls -la "${TARGET_DIR}/"
-
-        echo "=== 验证内核树 connectivity 目录（应该是原来的内容） ==="
-        ls -la "${KERNEL_DIR}/drivers/misc/mediatek/connectivity/"
-
     - name: Configure Kernel for WiFi Firmware Path
       run: |
         set -e
@@ -182,6 +161,47 @@ jobs:
     
         echo "=== 验证 wlan/core/gen4m 是否存在 ==="
         ls -la "${TARGET_DIR}/wlan/core/gen4m/" | head -20
+
+    - name: Patch Connectivity Makefile
+      run: |
+        set -e
+
+        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
+        PARENT_DIR="$(dirname "${KERNEL_DIR}")"
+        DRIVER_BASE="${PARENT_DIR}/vendor/mediatek/kernel_modules/connectivity"
+        MAKEFILE="${KERNEL_DIR}/drivers/misc/mediatek/connectivity/Makefile"
+
+        echo "=== 验证驱动源码路径 ==="
+        ls -la "${DRIVER_BASE}/wlan/core/gen4m/" | head -5
+
+        python3 - <<PYEOF
+        import re
+        path = "${MAKEFILE}"
+        with open(path, "r") as f:
+            content = f.read()
+        pattern = re.compile(
+            r"ifeq \(\\\$\(CONFIG_WLAN_DRV_BUILD_IN\),y\).*?endif",
+            re.DOTALL
+        )
+        replacement = """ifeq (\$(CONFIG_WLAN_DRV_BUILD_IN),y)
+        export CONFIG_MTK_COMBO_WIFI_HIF=axi
+        export MTK_COMBO_CHIP=CONNAC
+        export WLAN_CHIP_ID=6833
+        export MTK_ANDROID_WMT=y
+        subdir-ccflags-y += -D MTK_WCN_REMOVE_KERNEL_MODULE
+        subdir-ccflags-y += -D MTK_WCN_BUILT_IN_DRIVER
+        obj-y += ${DRIVER_BASE}/wmt_drv/
+        obj-y += ${DRIVER_BASE}/wmt_chrdev_wifi/
+        obj-y += ${DRIVER_BASE}/wlan_drv_gen4m/
+        endif"""
+        content = pattern.sub(replacement, content, count=1)
+        with open(path, "w") as f:
+            f.write(content)
+        print("Makefile 修改完成")
+        PYEOF
+
+        echo "=== 修改后的 Makefile 关键部分 ==="
+        grep -A 15 "CONFIG_WLAN_DRV_BUILD_IN" "${MAKEFILE}" | head -20
        
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'

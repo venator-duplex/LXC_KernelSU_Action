@@ -133,6 +133,10 @@ jobs:
     - name: Copy Connectivity Module into Kernel Tree
       run: |
         cp -r connectivity-modules/connectivity/* $GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/connectivity/
+
+    - name: Search firmware name in driver source
+      run: |
+        grep -rn "WIFI_RAM_CODE\|request_firmware" $GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/connectivity/wlan/ | head -30
           
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'

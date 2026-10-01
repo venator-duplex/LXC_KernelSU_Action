@@ -255,6 +255,17 @@ jobs:
                 echo "=== Makefile 写入完成，关键行如下 ==="
                 grep -n "obj-y +=" "${MAKEFILE}"
                 grep -n "wmt_drv\|wmt_chrdev_wifi\|wlan_drv_gen4m" "${MAKEFILE}"
+
+    - name: Patch gl_qa_agent.h for LIST_SEG_MAX
+      run: |
+        set -e
+        QA_HEADER="$GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/connectivity/wlan_drv_gen4m/os/linux/include/gl_qa_agent.h"
+        # 在第一次出现 LIST_SEG_MAX 的行之前插入兜底定义
+        if ! grep -q "ifndef LIST_SEG_MAX" "$QA_HEADER"; then
+          sed -i '/LIST_SEG_MAX/i #ifndef LIST_SEG_MAX\n#define LIST_SEG_MAX 100\n#endif' "$QA_HEADER"
+          echo "已插入 LIST_SEG_MAX 兜底定义"
+        fi
+        grep -n -B3 "LIST_SEG_MAX" "$QA_HEADER" | head -20
     
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'

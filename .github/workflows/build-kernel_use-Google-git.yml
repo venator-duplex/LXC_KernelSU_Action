@@ -267,6 +267,59 @@ jobs:
           echo "已插入 LIST_SEG_MAX 兜底定义"
         fi
         grep -n -B3 "LIST_SEG_MAX" "$QA_HEADER" | head -20
+
+    - name: Patch wlan_oid.c for LIST_MODE conditional
+      run: |
+        set -e
+
+        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
+        PARENT_DIR="$(dirname "${KERNEL_DIR}")"
+        WLAN_OID="${PARENT_DIR}/vendor/mediatek/kernel_modules/connectivity/wlan/core/gen4m/common/wlan_oid.c"
+
+        echo "=== 检查目标文件 ==="
+        ls -la "${WLAN_OID}" || exit 1
+
+        echo "=== 在 wlanSendSetQueryCmd 调用前插入 #if ==="
+        if ! grep -q "CONFIG_WLAN_SERVICE == 1" "${WLAN_OID}"; then
+          # 在包含 CMD_ID_LIST_MODE 的那段调用前后插入条件编译
+          # 这里用更通用的方式：找到 nicCmdEventListmode 所在行，往前后扩展
+          python3 - <<'PYEOF'
+        import re
+        path = "${WLAN_OID}"
+        with open(path, "r") as f:
+            content = f.read()
+
+        # 找到包含 nicCmdEventListmode 的 wlanSendSetQueryCmd 调用块
+        pattern = re.compile(
+            r'(\trStatus = wlanSendSetQueryCmd\(prAdapter,\s*\n'
+            r'\s+CMD_ID_LIST_MODE,\s*\n'
+            r'(?:.*\n)*?'
+            r'\s+u4QueryBufferLen\);\s*\n'
+            r'\t/\* Prevent list mode command takes more than 2 seconds \*/\s*\n'
+            r'\tif \(rStatus == WLAN_STATUS_FAILURE\)\s*\n'
+            r'\t\trStatus = WLAN_STATUS_SUCCESS;)',
+            re.MULTILINE
+        )
+
+        def wrap(m):
+            body = m.group(1)
+            return "#if (CONFIG_WLAN_SERVICE == 1)\n" + body + "\n#endif"
+
+        new_content, count = pattern.subn(wrap, content)
+        if count == 0:
+            print("WARN: 未找到匹配的 wlanSendSetQueryCmd 调用块")
+            # 退化方案：只在 nicCmdEventListmode 那一行前后加
+        else:
+            with open(path, "w") as f:
+                f.write(new_content)
+            print(f"已包裹 {count} 处调用")
+        PYEOF
+        else
+          echo "已存在 CONFIG_WLAN_SERVICE 条件，跳过"
+        fi
+
+        echo "=== 验证修改 ==="
+        grep -n -B2 -A2 "nicCmdEventListmode" "${WLAN_OID}" | head -30
     
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'

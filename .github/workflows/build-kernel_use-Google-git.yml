@@ -379,37 +379,59 @@ jobs:
 
         ls -la "${GL_KAL}" || exit 1
 
+        # 先恢复原始文件（如果上一轮 patch 破坏过）
         if grep -q "PATCHED_TPUT_DISABLE" "${GL_KAL}"; then
-          echo "已 patch 过，跳过"
-          exit 0
+          echo "检测到之前的 patch 已破坏文件，正在从备份恢复..."
+          if [ -f "${GL_KAL}.orig" ]; then
+            cp "${GL_KAL}.orig" "${GL_KAL}"
+          else
+            echo "ERROR: 没有备份文件 ${GL_KAL}.orig，无法恢复"
+            echo "请重新 clone connectivity-modules 或手动恢复 gl_kal.c"
+            exit 1
+          fi
         fi
 
-        # 1. 补上 GNU_PACKED 兜底
+        # 备份
+        cp "${GL_KAL}" "${GL_KAL}.orig"
+
+        # 补上 GNU_PACKED 兜底
         if ! grep -q "ifndef GNU_PACKED" "${GL_KAL}"; then
           sed -i '/#include "gl_os.h"/a #ifndef GNU_PACKED\n#define GNU_PACKED __attribute__((packed))\n#endif' "${GL_KAL}"
         fi
 
-        # 2. 找到 TPUT 结构体定义的起始和结束行，整段用 #if 0 包住
-        START=$(grep -n "^struct GNU_PACKED TPUT_FACTOR_LIST_T" "${GL_KAL}" | head -1 | cut -d: -f1)
-        END=$(grep -n "^};" "${GL_KAL}" | awk -F: -v s="$START" '$1 > s' | tail -3 | head -1 | cut -d: -f1)
+        # 用 Python 精确屏蔽 TPUT 结构体定义段
+        python3 - "${GL_KAL}" <<'PYEOF'
+        import sys, re
+        path = sys.argv[1]
+        with open(path) as f:
+            content = f.read()
 
-        echo "TPUT 结构体起始行: $START, 结束行: $END"
+        # 精确匹配从 TPUT_FACTOR_LIST_T 到 TPUT_BKRS_FACTOR_T 结束的整段
+        pattern = re.compile(
+            r'(struct GNU_PACKED TPUT_FACTOR_LIST_T \{.*?\n\};\s*\n'
+            r'.*?struct GNU_PACKED TPUT_SUB_FACTOR_T \{.*?\n\};\s*\n'
+            r'.*?struct GNU_PACKED TPUT_BKRS_FACTOR_T \{.*?\n\};\s*\n)',
+            re.DOTALL
+        )
+        content, n1 = pattern.subn(
+            lambda m: "/* PATCHED_TPUT_DISABLE */\n#if 0\n" + m.group(1) + "#endif\n",
+            content
+        )
 
-        if [ -n "$START" ] && [ -n "$END" ]; then
-          sed -i "${START}i /* PATCHED_TPUT_DISABLE */\n#if 0" "${GL_KAL}"
-          sed -i "$((END+2))i #endif" "${GL_KAL}"
-        fi
+        # 精确屏蔽 nicEventTputFactorHandler 函数
+        pattern2 = re.compile(
+            r'(void nicEventTputFactorHandler\(IN struct ADAPTER \*prAdapter,.*?\n\}\s*\n)',
+            re.DOTALL
+        )
+        content, n2 = pattern2.subn(
+            lambda m: "/* PATCHED_TPUT_DISABLE */\n#if 0\n" + m.group(1) + "#endif\n",
+            content
+        )
 
-        # 3. 屏蔽 nicEventTputFactorHandler 函数
-        FUNC_START=$(grep -n "^void nicEventTputFactorHandler" "${GL_KAL}" | head -1 | cut -d: -f1)
-        if [ -n "$FUNC_START" ]; then
-          echo "nicEventTputFactorHandler 起始行: $FUNC_START"
-          sed -i "${FUNC_START}i /* PATCHED_TPUT_DISABLE */\n#if 0" "${GL_KAL}"
-          # 找函数结束的 "}"
-          FUNC_END=$(awk -v s="$FUNC_START" 'NR>=s && /^}/ {print NR; exit}' "${GL_KAL}")
-          echo "nicEventTputFactorHandler 结束行: $FUNC_END"
-          sed -i "$((FUNC_END+1))i #endif" "${GL_KAL}"
-        fi
+        with open(path, "w") as f:
+            f.write(content)
+        print(f"已包裹 {n1} 处结构体定义，{n2} 处函数")
+        PYEOF
 
         echo "=== 验证 ==="
         grep -n "PATCHED_TPUT_DISABLE" "${GL_KAL}" | head

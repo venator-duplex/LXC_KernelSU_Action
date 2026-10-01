@@ -103,7 +103,7 @@ jobs:
 
     - name: Copy Connectivity Module into Kernel Tree
       run: |
-        cp -r modules-repo/connectivity/* kernel-source/drivers/misc/mediatek/connectivity/
+        cp -r connectivity-modules/connectivity/* kernel-source/drivers/misc/mediatek/connectivity/
         
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'

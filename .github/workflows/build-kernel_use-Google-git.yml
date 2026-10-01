@@ -535,6 +535,31 @@ jobs:
 
         echo "=== 验证 ==="
         grep -n "kalSetDrvEmiMpuProtection" "${GL_KAL_H}"
+
+    - name: Patch gl_kal.h for kalSetDrvEmiMpuProtection
+      run: |
+        set -e
+        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
+        PARENT_DIR="$(dirname "${KERNEL_DIR}")"
+        GL_KAL_H="${PARENT_DIR}/vendor/mediatek/kernel_modules/connectivity/wlan/core/gen4m/os/linux/include/gl_kal.h"
+
+        ls -la "${GL_KAL_H}" || exit 1
+
+        if grep -q "kalSetDrvEmiMpuProtection" "${GL_KAL_H}"; then
+          echo "已存在声明，跳过"
+          exit 0
+        fi
+
+        # 优先插在 kalSetEmiMpuProtection 声明后面
+        if grep -q "kalSetEmiMpuProtection" "${GL_KAL_H}"; then
+          sed -i '/kalSetEmiMpuProtection/a void kalSetDrvEmiMpuProtection(phys_addr_t emiPhyBase, uint32_t offset, uint32_t size);' "${GL_KAL_H}"
+        else
+          echo "" >> "${GL_KAL_H}"
+          echo "void kalSetDrvEmiMpuProtection(phys_addr_t emiPhyBase, uint32_t offset, uint32_t size);" >> "${GL_KAL_H}"
+        fi
+
+        echo "=== 验证 ==="
+        grep -n "kalSetDrvEmiMpuProtection\|kalSetEmiMpuProtection" "${GL_KAL_H}" | head
     
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'

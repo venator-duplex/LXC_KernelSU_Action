@@ -100,10 +100,10 @@ jobs:
         repository: MiCode/MTK_kernel_modules
         ref: light-u-oss
         path: connectivity-modules
-        grep -rn "LIST_SEG_MAX" connectivity-modules/connectivity/
 
     - name: Configure Kernel for WiFi Firmware Path
       run: |
+        grep -rn "LIST_SEG_MAX" connectivity-modules/connectivity/
         set -e
 
         # 你的真实内核目录

@@ -103,9 +103,6 @@ jobs:
 
     - name: Configure Kernel for WiFi Firmware Path
       run: |
-        grep -rn "WIFI_EMI_ADDR_MASK" connectivity-modules/connectivity/
-        grep -rn "gConEmiPhyBaseFinal" connectivity-modules/connectivity/
-        grep -rn "gConEmiPhyBase" kernel_workspace/android-kernel/drivers/misc/mediatek/
         set -e
 
         # 你的真实内核目录
@@ -314,6 +311,32 @@ jobs:
 
         echo "=== 验证修改 ==="
         sed -n "$((START-2)),$((END+2))p" "${WLAN_OID}"
+
+    - name: Patch nic_cmd_event.c for EMI symbols
+      run: |
+        set -e
+
+        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
+        PARENT_DIR="$(dirname "${KERNEL_DIR}")"
+        NIC_CMD_EVENT="${PARENT_DIR}/vendor/mediatek/kernel_modules/connectivity/wlan/core/gen4m/nic/nic_cmd_event.c"
+
+        ls -la "${NIC_CMD_EVENT}" || exit 1
+
+        # 检查是否已经 patch 过
+        if grep -q "ifndef WIFI_EMI_ADDR_MASK" "${NIC_CMD_EVENT}"; then
+          echo "已 patch 过，跳过"
+          exit 0
+        fi
+
+        # 在 #include "precomp.h" 之后插入兜底定义
+        sed -i '/#include "precomp.h"/a\
+        #ifndef WIFI_EMI_ADDR_MASK\
+        #define WIFI_EMI_ADDR_MASK 0xFFFFFF\
+        #endif\
+        extern phys_addr_t gConEmiPhyBaseFinal;' "${NIC_CMD_EVENT}"
+        
+                echo "=== 验证 ==="
+                grep -n -A6 '#include "precomp.h"' "${NIC_CMD_EVENT}" | head -15
     
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'

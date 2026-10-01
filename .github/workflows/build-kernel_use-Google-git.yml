@@ -112,25 +112,39 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
 
-        # 1. 按 MTK Makefile 期望的路径创建 vendor 目录
+        # 注意：checkout 到的是 $GITHUB_WORKSPACE/connectivity-modules
+        CONN_SRC="$GITHUB_WORKSPACE/connectivity-modules"
+
+        # 先确认目录存在
+        if [ ! -d "$CONN_SRC" ]; then
+          echo "::error::$CONN_SRC not found. Checkout step failed?"
+          ls -la $GITHUB_WORKSPACE
+          exit 1
+        fi
+
+        echo "===== connectivity-modules top level ====="
+        ls -la "$CONN_SRC"
+        find "$CONN_SRC" -maxdepth 3 -type d | sort
+
+        # 按 MTK Makefile 期望的路径创建 vendor 目录
         mkdir -p vendor/mediatek/kernel_modules/connectivity
 
-        # 2. 自动探测 connectivity 源码根（兼容多包一层的情况）
-        SRC_ROOT=$(dirname $(find connectivity-modules -type d -name common | head -1))
+        # 自动探测 connectivity 源码根
+        SRC_ROOT=$(dirname $(find "$CONN_SRC" -type d -name common | head -1))
         echo "Detected connectivity source root: $SRC_ROOT"
 
-        # 3. 复制内容到 vendor 路径
+        if [ -z "$SRC_ROOT" ] || [ "$SRC_ROOT" = "." ]; then
+          echo "::error::Cannot find 'common' directory under $CONN_SRC"
+          find "$CONN_SRC" -maxdepth 4 -type d | sort
+          exit 1
+        fi
+
         cp -r "$SRC_ROOT"/* vendor/mediatek/kernel_modules/connectivity/
 
-        # 4. 验证三个必需目录都存在
         echo "===== verify vendor paths ====="
         ls -d vendor/mediatek/kernel_modules/connectivity/common
         ls -d vendor/mediatek/kernel_modules/connectivity/wlan/adaptor
         ls -d vendor/mediatek/kernel_modules/connectivity/wlan/core/gen4m
-
-        # 5. 打印目录树，便于排查
-        echo "===== connectivity vendor tree (top 2 levels) ====="
-        find vendor/mediatek/kernel_modules/connectivity -maxdepth 2 -type d | sort
         
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'

@@ -103,7 +103,8 @@ jobs:
 
     - name: Configure Kernel for WiFi Firmware Path
       run: |
-        grep -rn "nicCmdEventListmode" connectivity-modules/connectivity/
+        sed -n '3670,3695p' connectivity-modules/connectivity/wlan/core/gen4m/include/nic_cmd_event.h
+        sed -n '17140,17160p' connectivity-modules/connectivity/wlan/core/gen4m/common/wlan_oid.c
         set -e
 
         # 你的真实内核目录

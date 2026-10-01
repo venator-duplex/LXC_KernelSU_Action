@@ -111,10 +111,26 @@ jobs:
     - name: Inject Connectivity Modules into Vendor Path
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        # 创建 MTK 期望的 vendor 路径（与 android-kernel 同级）
+
+        # 1. 按 MTK Makefile 期望的路径创建 vendor 目录
         mkdir -p vendor/mediatek/kernel_modules/connectivity
-        # 将 connectivity 内容复制到 vendor 路径
-        cp -r connectivity-modules/connectivity/* vendor/mediatek/kernel_modules/connectivity/
+
+        # 2. 自动探测 connectivity 源码根（兼容多包一层的情况）
+        SRC_ROOT=$(dirname $(find connectivity-modules -type d -name common | head -1))
+        echo "Detected connectivity source root: $SRC_ROOT"
+
+        # 3. 复制内容到 vendor 路径
+        cp -r "$SRC_ROOT"/* vendor/mediatek/kernel_modules/connectivity/
+
+        # 4. 验证三个必需目录都存在
+        echo "===== verify vendor paths ====="
+        ls -d vendor/mediatek/kernel_modules/connectivity/common
+        ls -d vendor/mediatek/kernel_modules/connectivity/wlan/adaptor
+        ls -d vendor/mediatek/kernel_modules/connectivity/wlan/core/gen4m
+
+        # 5. 打印目录树，便于排查
+        echo "===== connectivity vendor tree (top 2 levels) ====="
+        find vendor/mediatek/kernel_modules/connectivity -maxdepth 2 -type d | sort
         
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'

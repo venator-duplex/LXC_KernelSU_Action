@@ -101,9 +101,20 @@ jobs:
         ref: light-u-oss
         path: connectivity-modules
 
-    - name: Copy Connectivity Module into Kernel Tree
+    - name: Checkout Connectivity Modules
+      uses: actions/checkout@v4
+      with:
+        repository: MiCode/MTK_kernel_modules
+        ref: light-u-oss
+        path: connectivity-modules
+
+    - name: Inject Connectivity Modules into Vendor Path
       run: |
-        cp -r connectivity-modules/connectivity/* $GITHUB_WORKSPACE/kernel_workspace/android-kernel/drivers/misc/mediatek/connectivity/
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        # 创建 MTK 期望的 vendor 路径（与 android-kernel 同级）
+        mkdir -p vendor/mediatek/kernel_modules/connectivity
+        # 将 connectivity 内容复制到 vendor 路径
+        cp -r connectivity-modules/connectivity/* vendor/mediatek/kernel_modules/connectivity/
         
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'

@@ -100,7 +100,11 @@ jobs:
         repository: MiCode/MTK_kernel_modules
         ref: light-u-oss
         path: connectivity-modules
-    
+
+    - name: Copy Connectivity Module into Kernel Tree
+      run: |
+        cp -r modules-repo/connectivity/* kernel-source/drivers/misc/mediatek/connectivity/
+        
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'
       run: |
@@ -177,9 +181,9 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
         export CONFIG_WLAN_DRV_BUILD_IN=y
-        export MTK_PLATFORM=mt6833   # 请替换为你实际的目标平台，如 mt6771, mt6785 等
+        export MTK_PLATFORM=mt6853   # 请替换为你实际的目标平台，如 mt6771, mt6785 等
         export MTK_COMBO_CHIP=CONNAC
-        export WLAN_CHIP_ID=6833      # 请替换为你实际的芯片ID
+        export WLAN_CHIP_ID=6853      # 请替换为你实际的芯片ID
         export MTK_ANDROID_WMT=y
         #export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang-aosp/bin:$PATH
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang-aosp/clang-${{ env.CLANG_VERSION }}/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-32/bin:$PATH

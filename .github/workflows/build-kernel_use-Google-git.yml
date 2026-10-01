@@ -279,47 +279,40 @@ jobs:
         echo "=== 检查目标文件 ==="
         ls -la "${WLAN_OID}" || exit 1
 
-        echo "=== 在 wlanSendSetQueryCmd 调用前插入 #if ==="
-        if ! grep -q "CONFIG_WLAN_SERVICE == 1" "${WLAN_OID}"; then
-          # 在包含 CMD_ID_LIST_MODE 的那段调用前后插入条件编译
-          # 这里用更通用的方式：找到 nicCmdEventListmode 所在行，往前后扩展
-          python3 - <<'PYEOF'
-        import re
-        path = "${WLAN_OID}"
-        with open(path, "r") as f:
-            content = f.read()
+        echo "=== 定位 nicCmdEventListmode 调用行 ==="
+        LINE=$(grep -n "nicCmdEventListmode" "${WLAN_OID}" | head -1 | cut -d: -f1)
+        echo "nicCmdEventListmode 出现在第 $LINE 行"
 
-        # 找到包含 nicCmdEventListmode 的 wlanSendSetQueryCmd 调用块
-        pattern = re.compile(
-            r'(\trStatus = wlanSendSetQueryCmd\(prAdapter,\s*\n'
-            r'\s+CMD_ID_LIST_MODE,\s*\n'
-            r'(?:.*\n)*?'
-            r'\s+u4QueryBufferLen\);\s*\n'
-            r'\t/\* Prevent list mode command takes more than 2 seconds \*/\s*\n'
-            r'\tif \(rStatus == WLAN_STATUS_FAILURE\)\s*\n'
-            r'\t\trStatus = WLAN_STATUS_SUCCESS;)',
-            re.MULTILINE
-        )
-
-        def wrap(m):
-            body = m.group(1)
-            return "#if (CONFIG_WLAN_SERVICE == 1)\n" + body + "\n#endif"
-
-        new_content, count = pattern.subn(wrap, content)
-        if count == 0:
-            print("WARN: 未找到匹配的 wlanSendSetQueryCmd 调用块")
-            # 退化方案：只在 nicCmdEventListmode 那一行前后加
-        else:
-            with open(path, "w") as f:
-                f.write(new_content)
-            print(f"已包裹 {count} 处调用")
-        PYEOF
-        else
-          echo "已存在 CONFIG_WLAN_SERVICE 条件，跳过"
+        if [ -z "$LINE" ]; then
+          echo "ERROR: 没找到 nicCmdEventListmode"
+          exit 1
         fi
 
+        # 检查是否已经被 #if 包住
+        if sed -n "$((LINE-15)),$((LINE))p" "${WLAN_OID}" | grep -q "CONFIG_WLAN_SERVICE"; then
+          echo "调用已经处于 CONFIG_WLAN_SERVICE 条件内，跳过"
+          exit 0
+        fi
+
+        # 往上找到 rStatus = wlanSendSetQueryCmd(prAdapter, 这一行
+        START=$(awk -v l="$LINE" 'NR<=l && /rStatus = wlanSendSetQueryCmd\(prAdapter,/ {n=NR} END{print n}' "${WLAN_OID}")
+        echo "调用块起始行: $START"
+
+        # 往下找 rStatus = WLAN_STATUS_SUCCESS; 这一行
+        END=$(awk -v l="$LINE" 'NR>=l && /rStatus = WLAN_STATUS_SUCCESS;/ {print NR; exit}' "${WLAN_OID}")
+        echo "调用块结束行: $END"
+
+        if [ -z "$START" ] || [ -z "$END" ]; then
+          echo "ERROR: 无法定位调用块边界"
+          exit 1
+        fi
+
+        # 在 END 行之后插入 #endif，在 START 行之前插入 #if
+        sed -i "${END}a #endif /* CONFIG_WLAN_SERVICE == 1 */" "${WLAN_OID}"
+        sed -i "${START}i #if (CONFIG_WLAN_SERVICE == 1)" "${WLAN_OID}"
+
         echo "=== 验证修改 ==="
-        grep -n -B2 -A2 "nicCmdEventListmode" "${WLAN_OID}" | head -30
+        sed -n "$((START-2)),$((END+2))p" "${WLAN_OID}"
     
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'

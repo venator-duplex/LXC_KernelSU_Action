@@ -1,14 +1,14 @@
-name: Build Kernel with Built-in MTK WiFi
+name: Build MTK Connectivity Modules (Standalone)
 
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:
 
 jobs:
-  build-kernel:
+  build-modules:
     runs-on: ubuntu-22.04
 
     steps:
-      # ========== 1. 检出内核源码 ==========
+      # ========== 1. 检出内核源码（仅用于提供构建环境） ==========
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
@@ -22,7 +22,7 @@ jobs:
         with:
           repository: 'MiCode/MTK_kernel_modules'
           ref: 'light-u-oss'
-          path: 'mtk_modules'
+          path: 'connectivity'
 
       # ========== 3. 安装编译依赖 ==========
       - name: Install build dependencies
@@ -32,122 +32,48 @@ jobs:
             git make python3 bc bison flex libssl-dev \
             gcc-aarch64-linux-gnu
 
-      # ========== 4. 放置模块源码到 Makefile 期望的路径 ==========
-      - name: Place connectivity modules at expected path
-        run: |
-          KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
-          MODULES_DEST="$GITHUB_WORKSPACE/vendor/mediatek/kernel_modules/connectivity"
-
-          mkdir -p "$(dirname "$MODULES_DEST")"
-
-          # 找到 mtk_modules 中 connectivity 的实际位置
-          if [ -d "$GITHUB_WORKSPACE/mtk_modules/connectivity" ]; then
-            cp -r "$GITHUB_WORKSPACE/mtk_modules/connectivity" "$MODULES_DEST"
-          elif [ -d "$GITHUB_WORKSPACE/mtk_modules" ]; then
-            # 如果 mtk_modules 本身就是 connectivity 目录
-            cp -r "$GITHUB_WORKSPACE/mtk_modules" "$MODULES_DEST"
-          fi
-
-          echo "=== 确认路径结构 ==="
-          ls -la "$MODULES_DEST/common" 2>/dev/null || echo "common/ 不存在"
-          ls -la "$MODULES_DEST/wlan/adaptor" 2>/dev/null || echo "wlan/adaptor/ 不存在"
-          ls -la "$MODULES_DEST/wlan/core/gen4m" 2>/dev/null || echo "wlan/core/gen4m/ 不存在"
-
-      # ========== 5. 注入内建驱动配置到 defconfig ==========
-      - name: Inject built-in WiFi config into defconfig
-        run: |
-          DEFCONFIG="$GITHUB_WORKSPACE/kernel/arch/arm64/configs/light_defconfig"
-
-          if [ ! -f "$DEFCONFIG" ]; then
-            echo "错误: 未找到 $DEFCONFIG"
-            exit 1
-          fi
-
-          declare -a CONFIG_ITEMS=(
-            "CONFIG_WLAN_DRV_BUILD_IN=y"
-            "CONFIG_MTK_COMBO=y"
-            "CONFIG_MTK_COMBO_WIFI=y"
-            "CONFIG_MTK_COMBO_BT=y"
-            "CONFIG_MTK_COMBO_GPS=y"
-            "CONFIG_MTK_GPS_SUPPORT=y"
-            "CONFIG_MTK_FMRADIO=y"
-          )
-
-          for item in "${CONFIG_ITEMS[@]}"; do
-            key=$(echo "$item" | cut -d'=' -f1)
-            if grep -q "^${key}=" "$DEFCONFIG"; then
-              sed -i "s/^${key}=.*/${item}/" "$DEFCONFIG"
-              echo "已更新: $item"
-            else
-              echo "$item" >> "$DEFCONFIG"
-              echo "已追加: $item"
-            fi
-          done
-
-          echo "=== defconfig 中的 WiFi 配置 ==="
-          grep -E "WLAN_DRV_BUILD_IN|MTK_COMBO" "$DEFCONFIG"
-
-      # ========== 6. 锁定 vermagic（消除 -dirty） ==========
-      - name: Lock kernel vermagic and clean git tree
-        run: |
-          KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
-          DEFCONFIG="$KERNEL_DIR/arch/arm64/configs/light_defconfig"
-          TARGET_VERMAGIC="4.19.191-perf-g25e98838903c"
-
-          # 关闭 LOCALVERSION_AUTO
-          sed -i 's/^CONFIG_LOCALVERSION_AUTO=y/# CONFIG_LOCALVERSION_AUTO is not set/' "$DEFCONFIG"
-          grep -q "CONFIG_LOCALVERSION_AUTO" "$DEFCONFIG" || echo "# CONFIG_LOCALVERSION_AUTO is not set" >> "$DEFCONFIG"
-
-          # 强制设置 LOCALVERSION
-          sed -i '/^CONFIG_LOCALVERSION=/d' "$DEFCONFIG"
-          echo "CONFIG_LOCALVERSION=\"-perf-g25e98838903c\"" >> "$DEFCONFIG"
-
-          # 提交所有改动，消除 -dirty 后缀
-          cd "$KERNEL_DIR"
-          git config user.email "actions@github.com"
-          git config user.name "GitHub Actions"
-          git add -A
-          git commit -m "ci: lock kernel version and inject wifi config" --allow-empty
-
-          echo "=== 源码树状态 ==="
-          git status --porcelain
-
-      # ========== 7. 配置内核 ==========
-      - name: Configure kernel
+      # ========== 4. 先编译内核，生成 Module.symvers ==========
+      - name: Build kernel to generate Module.symvers
         working-directory: ./kernel
         run: |
           cp arch/arm64/configs/light_defconfig .config
           make ARCH=arm64 olddefconfig
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) vmlinux
+          echo "=== Module.symvers 是否生成 ==="
+          ls -la Module.symvers
 
-      # ========== 8. 编译内核 ==========
-      - name: Build kernel
-        working-directory: ./kernel
+      # ========== 5. 单独编译 connectivity 模块 ==========
+      - name: Build connectivity modules
         run: |
-          make ARCH=arm64 \
+          KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
+          CONNECTIVITY_DIR="$GITHUB_WORKSPACE/connectivity"
+
+          # 找到 connectivity 目录下实际的 Makefile 位置
+          echo "=== 搜索 Makefile ==="
+          find "$CONNECTIVITY_DIR" -name "Makefile" -maxdepth 4
+
+          # 尝试在 connectivity 根目录编译
+          cd "$CONNECTIVITY_DIR"
+          make -C "$KERNEL_DIR" \
+            M="$CONNECTIVITY_DIR" \
+            ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
-            -j$(nproc) \
-            Image.gz 2>&1 | tee build.log
+            modules \
+            -j$(nproc) 2>&1 | tee build.log || true
 
-          echo "=== 编译完成，检查产物 ==="
-          ls -la arch/arm64/boot/Image.gz
-
-      # ========== 9. 检查 WiFi 驱动是否内建成功 ==========
-      - name: Verify WiFi driver built-in
-        working-directory: ./kernel
+      # ========== 6. 收集 .ko 文件 ==========
+      - name: Collect .ko files
         run: |
-          echo "=== 检查编译日志中的 WiFi 驱动 ==="
-          grep -iE "wlan_drv_gen4m|wmt_drv|connadp" build.log | tail -20 || echo "未找到 WiFi 驱动编译记录"
+          mkdir -p output
+          find connectivity/ -name "*.ko" -exec cp {} output/ \;
+          echo "=== 找到的模块文件 ==="
+          ls -la output/
 
-          echo "=== 检查符号链接是否创建 ==="
-          ls -la drivers/misc/mediatek/connectivity/ | grep -E "wlan_drv_gen4m|wmt_drv" || echo "符号链接未创建"
-
-      # ========== 10. 上传编译产物 ==========
-      - name: Upload kernel image
+      # ========== 7. 上传构建产物 ==========
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-with-builtin-wifi
-          path: |
-            kernel/arch/arm64/boot/Image.gz
-            kernel/build.log
+          name: mtk-connectivity-modules
+          path: output/
           retention-days: 30
           if-no-files-found: warn

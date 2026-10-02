@@ -93,21 +93,6 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone ${{ env.KERNEL_SOURCE }} -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
-    
-    - name: Configure WiFi Module Loading
-      run: |
-        DEFCONFIG_PATH="$GITHUB_WORKSPACE/kernel_workspace/android-kernel/arch/arm64/configs/light_defconfig"
-        
-        # 1. 启用强制加载
-        sed -i 's/^# CONFIG_MODULE_FORCE_LOAD is not set/CONFIG_MODULE_FORCE_LOAD=y/' "$DEFCONFIG_PATH"
-        grep -q "CONFIG_MODULE_FORCE_LOAD=y" "$DEFCONFIG_PATH" || echo "CONFIG_MODULE_FORCE_LOAD=y" >> "$DEFCONFIG_PATH"
-        
-        # 2. 关闭符号版本校验
-        sed -i 's/^CONFIG_MODVERSIONS=y/# CONFIG_MODVERSIONS is not set/' "$DEFCONFIG_PATH"
-        grep -q "CONFIG_MODVERSIONS" "$DEFCONFIG_PATH" || echo "# CONFIG_MODVERSIONS is not set" >> "$DEFCONFIG_PATH"
-        
-        echo "=== 配置注入完成，验证结果 ==="
-        grep -E "MODULE_FORCE_LOAD|MODVERSIONS" "$DEFCONFIG_PATH"
             
     - name: Setup KernelSU
       if: env.ENABLE_KERNELSU == 'true'
@@ -173,6 +158,50 @@ jobs:
         if [ -f $GITHUB_WORKSPACE/kernel_workspace/android-kernel/net/netfilter/xt_qtaguid.c ]; then
             patch -p0 < $GITHUB_WORKSPACE/kernel_workspace/android-kernel/utils/xt_qtaguid.patch
         fi
+
+    - name: Configure WiFi Module Loading
+      run: |
+        DEFCONFIG_PATH="$GITHUB_WORKSPACE/kernel_workspace/android-kernel/arch/arm64/configs/light_defconfig"
+        
+        # 1. 启用强制加载
+        sed -i 's/^# CONFIG_MODULE_FORCE_LOAD is not set/CONFIG_MODULE_FORCE_LOAD=y/' "$DEFCONFIG_PATH"
+        grep -q "CONFIG_MODULE_FORCE_LOAD=y" "$DEFCONFIG_PATH" || echo "CONFIG_MODULE_FORCE_LOAD=y" >> "$DEFCONFIG_PATH"
+        
+        # 2. 关闭符号版本校验
+        sed -i 's/^CONFIG_MODVERSIONS=y/# CONFIG_MODVERSIONS is not set/' "$DEFCONFIG_PATH"
+        grep -q "CONFIG_MODVERSIONS" "$DEFCONFIG_PATH" || echo "# CONFIG_MODVERSIONS is not set" >> "$DEFCONFIG_PATH"
+        
+        echo "=== 配置注入完成，验证结果 ==="
+        grep -E "MODULE_FORCE_LOAD|MODVERSIONS" "$DEFCONFIG_PATH"
+
+    - name: Lock Kernel Vermagic
+      run: |
+        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
+        DEFCONFIG_PATH="$KERNEL_DIR/arch/arm64/configs/light_defconfig"
+        TARGET_VERMAGIC="4.19.191-perf-g25e98838903c"
+    
+        echo "=== 锁定内核版本号为: $TARGET_VERMAGIC ==="
+    
+        # 1. 确保 LOCALVERSION_AUTO 关闭
+        sed -i 's/^CONFIG_LOCALVERSION_AUTO=y/# CONFIG_LOCALVERSION_AUTO is not set/' "$DEFCONFIG_PATH"
+        grep -q "CONFIG_LOCALVERSION_AUTO" "$DEFCONFIG_PATH" || echo "# CONFIG_LOCALVERSION_AUTO is not set" >> "$DEFCONFIG_PATH"
+    
+        # 2. 强制设置 LOCALVERSION，覆盖任何自动生成的后缀
+        #    先移除已有的 CONFIG_LOCALVERSION 行
+        sed -i '/^CONFIG_LOCALVERSION=/d' "$DEFCONFIG_PATH"
+        #    再追加精确的目标版本字符串
+        echo "CONFIG_LOCALVERSION=\"-perf-g25e98838903c\"" >> "$DEFCONFIG_PATH"
+    
+        # 3. 验证写入结果
+        echo "=== defconfig 中的版本相关配置 ==="
+        grep -E "CONFIG_LOCALVERSION" "$DEFCONFIG_PATH"
+    
+        # 4. 额外保险：禁用 setlocalversion 的自动附加逻辑
+        #    防止源码树有未提交修改时追加 -dirty 后缀
+        if [ -f "$KERNEL_DIR/scripts/setlocalversion" ]; then
+            echo "=== 检查 setlocalversion 脚本 ==="
+            # 可以选择在这里注释掉自动追加逻辑，但通常 CONFIG_LOCALVERSION 已足够
+        fi
        
     - name: Setup ccache
       if: env.ENABLE_CCACHE == 'true'
@@ -184,6 +213,7 @@ jobs:
     - name: Build kernel
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        git status
         #export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang-aosp/bin:$PATH
         export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang-aosp/clang-${{ env.CLANG_VERSION }}/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-32/bin:$PATH
         export KBUILD_BUILD_HOST=Github-Action

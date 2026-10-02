@@ -1,0 +1,86 @@
+name: Build MTK Connectivity Modules (Standalone)
+
+on:
+  workflow_dispatch:  # 手动触发
+  push:
+    branches: [ main ]
+    paths:
+      - 'connectivity/**'  # 仅在 connectivity 目录变化时触发
+
+jobs:
+  build-modules:
+    runs-on: ubuntu-22.04  # 按要求使用 Ubuntu 22.04 [citation:4][citation:8]
+
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          repository: 'MiCode/Xiaomi_Kernel_OpenSource'  # 你的内核源码仓库
+          ref: 'light-u-oss'  # 你的设备分支
+          path: 'kernel'
+
+      - name: Checkout MTK connectivity modules
+        uses: actions/checkout@v4
+        with:
+          repository: 'MiCode/MTK_kernel_modules'  # 模块仓库
+          ref: 'light-u-oss'  # 你的设备分支 [citation:7]
+          path: 'connectivity'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git make python3 \
+            gcc-aarch64-linux-gnu \
+            bc bison flex libssl-dev
+
+      - name: Configure kernel for module building
+        working-directory: ./kernel
+        run: |
+          # 使用你从设备提取的 config 或 defconfig
+          # 这里假设你已经准备好了 light_defconfig
+          cp arch/arm64/configs/light_defconfig .config 2>/dev/null || true
+          
+          # 确保开启模块支持
+          scripts/config --enable CONFIG_MODULES
+          scripts/config --enable CONFIG_MTK_COMBO_WIFI
+          scripts/config --enable CONFIG_MTK_COMBO_BT
+          
+          make ARCH=arm64 olddefconfig
+
+      - name: Build connectivity modules
+        working-directory: ./connectivity
+        run: |
+          # 使用内核构建系统编译外部模块
+          # 关键：指定内核源码路径和当前模块路径
+          make -C ../kernel \
+            M=$(pwd) \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            modules \
+            -j$(nproc) || true
+          
+          # 如果 Makefile 需要特定目标，尝试备选方式
+          if [ ! -f wlan_drv_gen4m.ko ]; then
+            echo "尝试备选编译目标..."
+            make -C ../kernel \
+              M=$(pwd) \
+              ARCH=arm64 \
+              CROSS_COMPILE=aarch64-linux-gnu- \
+              modules
+          fi
+
+      - name: Collect .ko files
+        run: |
+          mkdir -p output
+          find connectivity -name "*.ko" -exec cp {} output/ \;
+          echo "=== 找到的模块文件 ==="
+          ls -la output/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4  # 上传构建产物 [citation:5][citation:17]
+        with:
+          name: mtk-connectivity-modules
+          path: output/
+          retention-days: 30
+          if-no-files-found: warn

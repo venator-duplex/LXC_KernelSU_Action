@@ -160,7 +160,6 @@ jobs:
       
       - name: Build gen4m WLAN driver
         run: |
-          ...
           make -C "$KERNEL_DIR" \
             M="$GEN4M_DIR" \
             ARCH=arm64 \

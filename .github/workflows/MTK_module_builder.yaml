@@ -1,344 +1,176 @@
-name: Build kernel use Google-git with wifi-fix
-on:
-  watch:
-    types: [started]
+name: Build MTK WLAN Driver (Standalone, Full)
 
+on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build Kernel by ${{ github.actor }}
-    runs-on: ubuntu-latest
-    if: github.event.repository.owner.id == github.event.sender.id
-    env:
-      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
-      CCACHE_NOHASHDIR: "true"
-      CCACHE_HARDLINK: "true"
+  build-wlan:
+    runs-on: ubuntu-22.04
+
     steps:
-    - uses: actions/checkout@v4
-    - name: Prepare Configuration
-      run: |
-        CONFIG_ENV=$(cat config.env | grep -w "CONFIG_ENV" | head -n 1 | cut -d "=" -f 2)
-        echo "KERNEL_SOURCE=$(cat $CONFIG_ENV | grep -w "KERNEL_SOURCE" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "KERNEL_SOURCE_BRANCH=$(cat $CONFIG_ENV | grep -w "KERNEL_SOURCE_BRANCH" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "KERNEL_CONFIG=$(cat $CONFIG_ENV | grep -w "KERNEL_CONFIG" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "KERNEL_IMAGE_NAME=$(cat $CONFIG_ENV | grep -w "KERNEL_IMAGE_NAME" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "ARCH=$(cat $CONFIG_ENV | grep -w "ARCH" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "EXTRA_CMDS=$(cat $CONFIG_ENV | grep -w "EXTRA_CMDS" | head -n 1 | cut -d ":" -f 2)" >> $GITHUB_ENV
-        echo "USE_CUSTOM_CLANG=$(cat $CONFIG_ENV | grep -w "USE_CUSTOM_CLANG" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "CUSTOM_CLANG_SOURCE=$(cat $CONFIG_ENV | grep -w "CUSTOM_CLANG_SOURCE" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "CUSTOM_CLANG_BRANCH=$(cat $CONFIG_ENV | grep -w "CUSTOM_CLANG_BRANCH" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "CUSTOM_CMDS=$(cat $CONFIG_ENV | grep -w "CUSTOM_CMDS" | head -n 1 | cut -d ":" -f 2)" >> $GITHUB_ENV
-        echo "CLANG_BRANCH=$(cat $CONFIG_ENV | grep -w "CLANG_BRANCH" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "CLANG_VERSION=$(cat $CONFIG_ENV | grep -w "CLANG_VERSION" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "ENABLE_GCC_ARM64=$(cat $CONFIG_ENV | grep -w "ENABLE_GCC_ARM64" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "ENABLE_GCC_ARM32=$(cat $CONFIG_ENV | grep -w "ENABLE_GCC_ARM32" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "USE_CUSTOM_GCC_64=$(cat $CONFIG_ENV | grep -w "USE_CUSTOM_GCC_64" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "CUSTOM_GCC_64_SOURCE=$(cat $CONFIG_ENV | grep -w "CUSTOM_GCC_64_SOURCE" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "CUSTOM_GCC_64_BRANCH=$(cat $CONFIG_ENV | grep -w "CUSTOM_GCC_64_BRANCH" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "CUSTOM_GCC_64_BIN=$(cat $CONFIG_ENV | grep -w "CUSTOM_GCC_64_BIN" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "USE_CUSTOM_GCC_32=$(cat $CONFIG_ENV | grep -w "USE_CUSTOM_GCC_32" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "CUSTOM_GCC_32_SOURCE=$(cat $CONFIG_ENV | grep -w "CUSTOM_GCC_32_SOURCE" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "CUSTOM_GCC_32_BRANCH=$(cat $CONFIG_ENV | grep -w "CUSTOM_GCC_32_BRANCH" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "CUSTOM_GCC_32_BIN=$(cat $CONFIG_ENV | grep -w "CUSTOM_GCC_32_BIN" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "ENABLE_KERNELSU=$(cat $CONFIG_ENV | grep -w "ENABLE_KERNELSU" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "KERNELSU_TAG=$(cat $CONFIG_ENV | grep -w "KERNELSU_TAG" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "ADD_KPROBES_CONFIG=$(cat $CONFIG_ENV | grep -w "ADD_KPROBES_CONFIG" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "DISABLE-LTO=$(cat $CONFIG_ENV | grep -w "DISABLE-LTO" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "ADD_OVERLAYFS_CONFIG=$(cat $CONFIG_ENV | grep -w "ADD_OVERLAYFS_CONFIG" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "DISABLE_CC_WERROR=$(cat $CONFIG_ENV | grep -w "DISABLE_CC_WERROR" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "ENABLE_CCACHE=$(cat $CONFIG_ENV | grep -w "ENABLE_CCACHE" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "NEED_DTBO=$(cat $CONFIG_ENV | grep -w "NEED_DTBO" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "BUILD_BOOT_IMG=$(cat $CONFIG_ENV | grep -w "BUILD_BOOT_IMG" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "SOURCE_BOOT_IMAGE=$(cat $CONFIG_ENV | grep -w "SOURCE_BOOT_IMAGE" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "KSU_EXPECTED_SIZE=$(cat $CONFIG_ENV | grep -w "KSU_EXPECTED_SIZE" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "KSU_EXPECTED_HASH=$(cat $CONFIG_ENV | grep -w "KSU_EXPECTED_HASH" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        echo "ENABLE_LXC=$(cat $CONFIG_ENV | grep -w "ENABLE_LXC" | head -n 1 | cut -d "=" -f 2)" >> $GITHUB_ENV
-        
-    - name: Set swap to 10G
-      uses: pierotofy/set-swap-space@master
-      with:
-        swap-size-gb: 10
+      # ========== 1. 检出内核源码 ==========
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          repository: 'MiCode/Xiaomi_Kernel_OpenSource'
+          ref: 'light-u-oss'
+          path: 'kernel'
 
-    - name: Setup build kernel environment
-      run: |
-        echo "BUILD_TIME=$(TZ=Asia/Shanghai date "+%Y%m%d%H%M")" >> $GITHUB_ENV
-        echo "DEVICE=$(echo ${{ env.KERNEL_CONFIG }} | sed 's!vendor/!!;s/_defconfig//;s/_user//;s/-perf//')" >> $GITHUB_ENV
-        sudo apt-get update
-        sudo -E apt-get -y -qq install git make bc bison ccache openssl zip kmod cpio flex libelf-dev curl libssl-dev libtfm-dev wget device-tree-compiler ca-certificates python3 binutils binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
-        sudo -E apt-get -y -qq install build-essential gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi gcc-arm-linux-gnueabihf
-        mkdir -p $GITHUB_WORKSPACE/kernel_workspace
+      # ========== 2. 检出 MTK Connectivity 模块源码 ==========
+      - name: Checkout MTK connectivity modules
+        uses: actions/checkout@v4
+        with:
+          repository: 'MiCode/MTK_kernel_modules'
+          ref: 'light-u-oss'
+          path: 'connectivity'
 
-    - name: Download Clang-aosp
-      if: env.USE_CUSTOM_CLANG != 'true'
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone -q --depth=1 --single-branch https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 -b ${{ env.CLANG_BRANCH }} clang-aosp
-        
+      # ========== 3. 下载之前编译内核生成的 Module.symvers ==========
+      - name: Download Module.symvers
+        uses: actions/download-artifact@v4
+        with:
+          name: module-symvers
+          run-id: 37089845891
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: 'kernel/'
 
-    - name: Download Google_gcc-4.9 
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-         #git clone -q --depth=1 --single-branch https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 -b ${{ env.CLANG_BRANCH }} gcc-64
-         #git clone -q --depth=1 --single-branch https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9 -b ${{ env.CLANG_BRANCH }} gcc-32
+      # ========== 4. 安装编译依赖 ==========
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git make python3 bc bison flex libssl-dev \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
-    - name: Download mkbootimg tools
-      if: env.BUILD_BOOT_IMG == 'true'
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://android.googlesource.com/platform/system/tools/mkbootimg tools -b master-kernel-build-2022 --depth=1
+      # ========== 5. 下载 clang r383902 ==========
+      - name: Download Clang r383902
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git clone -q --depth=1 --single-branch \
+            https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 \
+            -b android12-release clang-aosp
+          echo "=== clang 版本 ==="
+          "$GITHUB_WORKSPACE/clang-aosp/clang-r383902/bin/clang" --version
 
-    - name: Download kernel source
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone ${{ env.KERNEL_SOURCE }} -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
+      # ========== 6. 确认 Module.symvers 存在 ==========
+      - name: Verify Module.symvers
+        run: |
+          ls -la kernel/Module.symvers
+          wc -l kernel/Module.symvers
 
-    # ========== 新增：检出 MTK Connectivity 模块 ==========
-    - name: Download MTK Connectivity modules
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://github.com/MiCode/MTK_kernel_modules.git -b light-u-oss connectivity --depth=1
-        echo "=== connectivity 目录结构 ==="
-        ls -la connectivity/
+      # ========== 7. 准备内核头文件 ==========
+      - name: Prepare kernel headers
+        working-directory: ./kernel
+        env:
+          PATH: "${{ github.workspace }}/clang-aosp/clang-r383902/bin:/usr/bin:/bin"
+        run: |
+          cp arch/arm64/configs/light_defconfig .config
+          make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- olddefconfig
+          make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- modules_prepare
 
-    # ========== 新增：把 connectivity 源码放到 Makefile 期望的路径 ==========
-    - name: Place connectivity modules at expected path
-      run: |
-        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
-        MODULES_DEST="$GITHUB_WORKSPACE/vendor/mediatek/kernel_modules/connectivity"
+      # ========== 8. 编译 wmt_drv（WMT 核心驱动） ==========
+      - name: Build wmt_drv
+        env:
+          PATH: "${{ github.workspace }}/clang-aosp/clang-r383902/bin:/usr/bin:/bin"
+        run: |
+          KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
+          WMT_DIR="$GITHUB_WORKSPACE/connectivity/common"
 
-        mkdir -p "$(dirname "$MODULES_DEST")"
-        if [ -d "$GITHUB_WORKSPACE/kernel_workspace/connectivity" ]; then
-          cp -r "$GITHUB_WORKSPACE/kernel_workspace/connectivity" "$MODULES_DEST"
-        fi
+          echo "=== 确认 wmt_drv 目录存在 ==="
+          ls -la "$WMT_DIR/Makefile" 2>/dev/null || find "$GITHUB_WORKSPACE/connectivity" -name "Makefile" | grep -i "common"
 
-        echo "=== 确认路径结构 ==="
-        ls -la "$MODULES_DEST/common" 2>/dev/null || echo "common/ 不存在"
-        ls -la "$MODULES_DEST/wlan/adaptor" 2>/dev/null || echo "wlan/adaptor/ 不存在"
-        ls -la "$MODULES_DEST/wlan/core/gen4m" 2>/dev/null || echo "wlan/core/gen4m/ 不存在"
+          cd "$WMT_DIR"
+          make -C "$KERNEL_DIR" \
+            M="$WMT_DIR" \
+            ARCH=arm64 \
+            CC=clang \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CONFIG_MTK_COMBO=m \
+            CONFIG_WLAN_DRV_BUILD_IN=n \
+            CONFIG_MTK_COMBO_WIFI_HIF=axi \
+            WLAN_CHIP_ID=6833 \
+            MTK_COMBO_CHIP=CONNAC2X2 \
+            WIFI_IP_SET=3 \
+            modules \
+            -j$(nproc) 2>&1 | tee "$GITHUB_WORKSPACE/wmt_drv_build.log" || true
 
-    - name: Setup KernelSU
-      if: env.ENABLE_KERNELSU == 'true'
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        sed -i "s/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/g" arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s v1.0.5
-      
-    - name: Setup Configuration for Kernel
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        mkdir -p drivers/mihw
-        cat > drivers/mihw/Makefile <<'EOF'
-        # Placeholder Makefile to bypass missing Xiaomi mihw driver
-        obj-y :=
-        EOF
-        sed -i 's/CONFIG_FRAME_WARN=.*/CONFIG_FRAME_WARN=8192/' arch/arm64/configs/light_defconfig
-        grep -q "CONFIG_FRAME_WARN" arch/arm64/configs/light_defconfig || echo 'CONFIG_FRAME_WARN=8192' >> arch/arm64/configs/light_defconfig
-        if [ ${{ env.ADD_KPROBES_CONFIG }} = true ]; then
-            echo "CONFIG_MODULES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-            echo "CONFIG_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-            echo "CONFIG_HAVE_KPROBES=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-            echo "CONFIG_KPROBE_EVENTS=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        fi
-        if [ ${{ env.ADD_OVERLAYFS_CONFIG }} = true ]; then
-            echo "CONFIG_OVERLAY_FS=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        fi
-        if [ ${{ env.DISABLE-LTO }} = true ]; then
-            sed -i 's/CONFIG_LTO=y/CONFIG_LTO=n/' arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-            sed -i 's/CONFIG_LTO_CLANG=y/CONFIG_LTO_CLANG=n/' arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-            sed -i 's/CONFIG_THINLTO=y/CONFIG_THINLTO=n/' arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-            echo "CONFIG_LTO_NONE=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        fi
-        if [ ${{ env.DISABLE_CC_WERROR }} = true ]; then
-            echo "CONFIG_CC_WERROR=n" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        fi
+      # ========== 9. 编译 wmt_chrdev_wifi（字符设备接口） ==========
+      - name: Build wmt_chrdev_wifi
+        env:
+          PATH: "${{ github.workspace }}/clang-aosp/clang-r383902/bin:/usr/bin:/bin"
+        run: |
+          KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
+          CHRDEV_DIR="$GITHUB_WORKSPACE/connectivity/wlan/adaptor"
 
-        # ========== 新增：内建 WiFi 驱动的 defconfig 配置 ==========
-        echo "CONFIG_WLAN_DRV_BUILD_IN=y" >> arch/arm64/configs/light_defconfig
-        echo "CONFIG_MTK_COMBO=y" >> arch/arm64/configs/light_defconfig
-        echo "CONFIG_MTK_COMBO_WIFI=y" >> arch/arm64/configs/light_defconfig
-        echo "CONFIG_MTK_COMBO_BT=y" >> arch/arm64/configs/light_defconfig
-        echo "CONFIG_MTK_COMBO_GPS=y" >> arch/arm64/configs/light_defconfig
-        echo "CONFIG_MTK_GPS_SUPPORT=y" >> arch/arm64/configs/light_defconfig
-        echo "CONFIG_MTK_FMRADIO=y" >> arch/arm64/configs/light_defconfig
+          echo "=== 确认 wmt_chrdev_wifi 目录存在 ==="
+          ls -la "$CHRDEV_DIR/Makefile" 2>/dev/null || find "$GITHUB_WORKSPACE/connectivity/wlan" -name "Makefile" | grep -i "adaptor"
 
-        echo "=== 验证 WiFi 相关配置 ==="
-        grep -E "WLAN_DRV_BUILD_IN|MTK_COMBO" arch/arm64/configs/light_defconfig
+          cd "$CHRDEV_DIR"
+          make -C "$KERNEL_DIR" \
+            M="$CHRDEV_DIR" \
+            ARCH=arm64 \
+            CC=clang \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CONFIG_MTK_COMBO=m \
+            CONFIG_WLAN_DRV_BUILD_IN=n \
+            CONFIG_MTK_COMBO_WIFI_HIF=axi \
+            WLAN_CHIP_ID=6833 \
+            MTK_COMBO_CHIP=CONNAC2X2 \
+            WIFI_IP_SET=3 \
+            modules \
+            -j$(nproc) 2>&1 | tee "$GITHUB_WORKSPACE/wmt_chrdev_wifi_build.log" || true
 
-    # ========== 新增：修复内建时的两个报错 ==========
-    - name: Fix known kernel source issues
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+      # ========== 10. 编译 gen4m（WLAN 核心驱动） ==========
+      - name: Build gen4m WLAN driver
+        env:
+          PATH: "${{ github.workspace }}/clang-aosp/clang-r383902/bin:/usr/bin:/bin"
+        run: |
+          KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
+          GEN4M_DIR="$GITHUB_WORKSPACE/connectivity/wlan/core/gen4m"
 
-        # 修复 uclamp_se_set 内联问题
-        if [ -f kernel/sched/sched.h ]; then
-          sed -i 's/static __always_inline void uclamp_se_set/static inline void uclamp_se_set/' kernel/sched/sched.h
-          sed -i 's/__always_inline void uclamp_se_set/inline void uclamp_se_set/' kernel/sched/sched.h
-          echo "=== 修复 uclamp_se_set ==="
-          grep -n "uclamp_se_set" kernel/sched/sched.h | head -5
-        fi
+          echo "=== 确认 gen4m 目录存在 ==="
+          ls -la "$GEN4M_DIR/Makefile"
 
-        # 查找 mtk_ftrace.h
-        echo "=== 搜索 mtk_ftrace.h ==="
-        find . -name "mtk_ftrace.h" 2>/dev/null
+          cd "$GEN4M_DIR"
+          make -C "$KERNEL_DIR" \
+            M="$GEN4M_DIR" \
+            ARCH=arm64 \
+            CC=clang \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CONFIG_MTK_COMBO_WIFI=m \
+            CONFIG_WLAN_DRV_BUILD_IN=n \
+            CONFIG_MTK_COMBO_WIFI_HIF=axi \
+            WLAN_CHIP_ID=6833 \
+            MTK_COMBO_CHIP=CONNAC2X2 \
+            WIFI_IP_SET=3 \
+            modules \
+            -j$(nproc) 2>&1 | tee "$GITHUB_WORKSPACE/gen4m_build.log" || true
 
-        # 如果文件在 include/trace/ 下，确认路径
-        ls -la include/trace/mtk_ftrace.h 2>/dev/null || echo "不在 include/trace/"
-        ls -la kernel/trace/mtk_ftrace.h 2>/dev/null || echo "不在 kernel/trace/"
+      # ========== 11. 收集 .ko 文件 ==========
+      - name: Collect .ko files
+        run: |
+          mkdir -p output
+          find connectivity/ -name "*.ko" -exec cp {} output/ \;
+          echo "=== 找到的模块文件 ==="
+          ls -la output/
 
-    - name: Setup LXC
-      if: env.ENABLE_LXC == 'true'
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        rm -rf utils
-        git clone https://github.com/tomxi1997/lxc-docker-support-for-android.git utils
-        echo 'source "utils/Kconfig"' >> "Kconfig"
+      # ========== 12. 上传构建产物 ==========
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtk-wlan-modules
+          path: output/
+          retention-days: 30
+          if-no-files-found: warn
 
-        echo "CONFIG_DOCKER=y" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-
-        sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-        echo "# CONFIG_ANDROID_PARANOID_NETWORK is not set" >> arch/${{ env.ARCH }}/configs/${{ env.KERNEL_CONFIG }}
-          
-        chmod +x $GITHUB_WORKSPACE/kernel_workspace/android-kernel/utils/runcpatch.sh
-        if [ -f $GITHUB_WORKSPACE/kernel_workspace/android-kernel/kernel/cgroup/cgroup.c ]; then
-            sh $GITHUB_WORKSPACE/kernel_workspace/android-kernel/utils/runcpatch.sh $GITHUB_WORKSPACE/kernel_workspace/android-kernel/kernel/cgroup/cgroup.c
-        fi
-
-        if [ -f $GITHUB_WORKSPACE/kernel_workspace/android-kernel/kernel/cgroup.c ]; then
-            sh $GITHUB_WORKSPACE/kernel_workspace/android-kernel/utils/runcpatch.sh $GITHUB_WORKSPACE/kernel_workspace/android-kernel/kernel/cgroup.c
-        fi
-
-        if [ -f $GITHUB_WORKSPACE/kernel_workspace/android-kernel/net/netfilter/xt_qtaguid.c ]; then
-            patch -p0 < $GITHUB_WORKSPACE/kernel_workspace/android-kernel/utils/xt_qtaguid.patch
-        fi
-
-    - name: Configure WiFi Module Loading
-      run: |
-        DEFCONFIG_PATH="$GITHUB_WORKSPACE/kernel_workspace/android-kernel/arch/arm64/configs/light_defconfig"
-        
-        # 1. 启用强制加载
-        sed -i 's/^# CONFIG_MODULE_FORCE_LOAD is not set/CONFIG_MODULE_FORCE_LOAD=y/' "$DEFCONFIG_PATH"
-        grep -q "CONFIG_MODULE_FORCE_LOAD=y" "$DEFCONFIG_PATH" || echo "CONFIG_MODULE_FORCE_LOAD=y" >> "$DEFCONFIG_PATH"
-        
-        # 2. 关闭符号版本校验
-        sed -i 's/^CONFIG_MODVERSIONS=y/# CONFIG_MODVERSIONS is not set/' "$DEFCONFIG_PATH"
-        grep -q "CONFIG_MODVERSIONS" "$DEFCONFIG_PATH" || echo "# CONFIG_MODVERSIONS is not set" >> "$DEFCONFIG_PATH"
-        
-        echo "=== 配置注入完成，验证结果 ==="
-        grep -E "MODULE_FORCE_LOAD|MODVERSIONS" "$DEFCONFIG_PATH"
-
-    - name: Lock Kernel Vermagic
-      run: |
-        KERNEL_DIR="$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
-        DEFCONFIG_PATH="$KERNEL_DIR/arch/arm64/configs/light_defconfig"
-        TARGET_VERMAGIC="4.19.191-perf-g25e98838903c"
-    
-        echo "=== 锁定内核版本号为: $TARGET_VERMAGIC ==="
-    
-        sed -i 's/^CONFIG_LOCALVERSION_AUTO=y/# CONFIG_LOCALVERSION_AUTO is not set/' "$DEFCONFIG_PATH"
-        grep -q "CONFIG_LOCALVERSION_AUTO" "$DEFCONFIG_PATH" || echo "# CONFIG_LOCALVERSION_AUTO is not set" >> "$DEFCONFIG_PATH"
-    
-        sed -i '/^CONFIG_LOCALVERSION=/d' "$DEFCONFIG_PATH"
-        echo "CONFIG_LOCALVERSION=\"-perf-g25e98838903c\"" >> "$DEFCONFIG_PATH"
-    
-        echo "=== defconfig 中的版本相关配置 ==="
-        grep -E "CONFIG_LOCALVERSION" "$DEFCONFIG_PATH"
-       
-    - name: Setup ccache
-      if: env.ENABLE_CCACHE == 'true'
-      uses: hendrikmuhs/ccache-action@v1.2
-      with:
-        key: build-kernel-${{ env.DEVICE }}${{ env.UPLOADNAME }}
-        max-size: 2G
-
-    - name: Build kernel
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        git status
-        export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang-aosp/clang-${{ env.CLANG_VERSION }}/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-64/bin:$GITHUB_WORKSPACE/kernel_workspace/gcc-32/bin:$PATH
-        export KBUILD_BUILD_HOST=Github-Action
-        export KBUILD_BUILD_USER=$(echo ${{ github.actor }} | tr A-Z a-z)
-        if [ ! -z ${{ env.KSU_EXPECTED_SIZE }} ] && [ ! -z ${{ env.KSU_EXPECTED_HASH }} ]; then
-          export KSU_EXPECTED_SIZE=${{ env.KSU_EXPECTED_SIZE }}
-          export KSU_EXPECTED_HASH=${{ env.KSU_EXPECTED_HASH }}
-        fi
-        make -j$(nproc --all) CC=clang O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- ${{ env.KERNEL_CONFIG }}
-        if [ ${{ env.ENABLE_CCACHE }} = true ]; then
-            make -j$(nproc --all) CC="ccache clang" O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- 
-        else
-            make -j$(nproc --all) CC=clang O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- 
-        fi
-        
-    - name: Check a kernel output files
-      run: |
-       cd $GITHUB_WORKSPACE/kernel_workspace
-       if [ -f android-kernel/out/arch/${{ env.ARCH }}/boot/${{ env.KERNEL_IMAGE_NAME }} ]; then
-           echo "CHECK_FILE_IS_OK=true" >> $GITHUB_ENV
-       else
-           echo "Kernel output file is empty"
-           exit 1
-       fi
-       if [ ${{ env.NEED_DTBO }} = true ]; then
-           if [ -f android-kernel/out/arch/${{ env.ARCH }}/boot/dtbo.img ]; then
-               echo "CHECK_DTBO_IS_OK=true" >> $GITHUB_ENV
-           else
-               echo "DTBO image is empty"
-               exit 1
-           fi
-       fi
-  
-    - name: Make Anykernel3
-      if: env.CHECK_FILE_IS_OK == 'true'
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://github.com/osm0sis/AnyKernel3
-        sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3/anykernel.sh
-        sed -i 's!block=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot;!block=auto;!g' AnyKernel3/anykernel.sh
-        sed -i 's/is_slot_device=0;/is_slot_device=auto;/g' AnyKernel3/anykernel.sh
-        cp android-kernel/out/arch/${{ env.ARCH }}/boot/${{ env.KERNEL_IMAGE_NAME }} AnyKernel3/
-        if [ ${{ env.CHECK_DTBO_IS_OK }} = true ]; then
-            cp android-kernel/out/arch/${{ env.ARCH }}/boot/dtbo.img AnyKernel3/
-        fi
-        rm -rf AnyKernel3/.git* AnyKernel3/README.md
-
-    - name: Make boot image
-      if: env.HAVE_SOURCE_BOOT_IMAGE == 'true' && env.CHECK_FILE_IS_OK == 'true'
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace
-        tools/unpack_bootimg.py --boot_img boot-source.img
-        cp android-kernel/out/arch/${{ env.ARCH }}/boot/${{ env.KERNEL_IMAGE_NAME }} out/kernel
-        tools/mkbootimg.py ${{ env.FORMAT_MKBOOTING }} -o boot.img
-        if [ -f boot.img ]; then
-            echo "MAKE_BOOT_IMAGE_IS_OK=true" >> $GITHUB_ENV
-        else
-            echo "Boot image is empty"
-            exit 1
-        fi
-    
-    - name: Upload ${{ env.KERNEL_IMAGE_NAME }}
-      if: env.CHECK_FILE_IS_OK == 'true'
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.KERNEL_IMAGE_NAME }}${{ env.UPLOADNAME }}-${{ env.DEVICE }}-${{ env.BUILD_TIME }}
-        path: kernel_workspace/android-kernel/out/arch/${{ env.ARCH }}/boot/${{ env.KERNEL_IMAGE_NAME }}
-
-    - name: Upload AnyKernel3
-      if: env.CHECK_FILE_IS_OK == 'true'
-      uses: actions/upload-artifact@v4
-      with:
-        name: AnyKernel3${{ env.UPLOADNAME }}-${{ env.DEVICE }}-${{ env.BUILD_TIME }}
-        path: kernel_workspace/AnyKernel3/*
-
-    - name: Upload DTBO image
-      if: env.CHECK_DTBO_IS_OK == 'true'
-      uses: actions/upload-artifact@v4
-      with:
-        name: dtbo-${{ env.DEVICE }}-${{ env.BUILD_TIME }}
-        path: kernel_workspace/android-kernel/out/arch/${{ env.ARCH }}/boot/dtbo.img
-
-    - name: Upload boot image
-      if: env.MAKE_BOOT_IMAGE_IS_OK == 'true'
-      uses: actions/upload-artifact@v4
-      with:
-        name: boot${{ env.UPLOADNAME }}-${{ env.DEVICE }}-${{ env.BUILD_TIME }}
-        path: kernel_workspace/boot.img
+      - name: Upload build logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: wlan-build-logs
+          path: |
+            wmt_drv_build.log
+            wmt_chrdev_wifi_build.log
+            gen4m_build.log
+          if-no-files-found: warn

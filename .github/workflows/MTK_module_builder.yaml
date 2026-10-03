@@ -159,7 +159,33 @@ jobs:
           head -5 "$PRECOMP"
       
       - name: Build gen4m WLAN driver
+        env:
+          PATH: "${{ github.workspace }}/clang-aosp/clang-r383902/bin:/usr/bin:/bin"
         run: |
+          KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
+          GEN4M_DIR="$GITHUB_WORKSPACE/connectivity/connectivity/wlan/core/gen4m"
+          BASE="$GITHUB_WORKSPACE/connectivity/connectivity"
+
+          echo "=== KERNEL_DIR: $KERNEL_DIR ==="
+          echo "=== GEN4M_DIR: $GEN4M_DIR ==="
+          ls -la "$KERNEL_DIR/Makefile" || echo "内核 Makefile 不存在"
+          ls -la "$GEN4M_DIR/Makefile" || echo "gen4m Makefile 不存在"
+
+          export KCFLAGS="-I$BASE/common/common_main/include \
+          -I$BASE/common/common_main/linux/include \
+          -I$BASE/common/debug_utility \
+          -I$BASE/conninfra/include \
+          -I$BASE/conninfra/base/include \
+          -I$BASE/conninfra/debug_utility/include \
+          -I$BASE/wlan/adaptor \
+          -I$BASE/wlan/core/gen4m/include \
+          -I$BASE/wlan/core/gen4m/include/nic \
+          -I$BASE/wlan/core/gen4m/include/mgmt \
+          -I$BASE/wlan/core/gen4m/include/chips \
+          -I$BASE/wlan/core/gen4m/os/linux/include \
+          -I$BASE/wlan/core/gen4m/wlan_service/glue/osal/include"
+
+          cd "$GEN4M_DIR"
           make -C "$KERNEL_DIR" \
             M="$GEN4M_DIR" \
             ARCH=arm64 \

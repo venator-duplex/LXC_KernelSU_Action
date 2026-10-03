@@ -140,23 +140,34 @@ jobs:
             modules \
             -j$(nproc) 2>&1 | tee "$GITHUB_WORKSPACE/wmt_chrdev_wifi_build.log" || true
 
-      - name: Debug header paths
+      - name: Find missing headers
         run: |
           BASE="$GITHUB_WORKSPACE/connectivity/connectivity"
-          echo "=== BASE 目录 ==="
-          ls -la "$BASE/"
-          echo "=== common 下有什么 ==="
-          ls -la "$BASE/common/"
-          echo "=== 搜索 wmt_exp.h ==="
-          find "$BASE" -name "wmt_exp.h" 2>/dev/null
-          echo "=== 搜索 connsys_debug_utility.h ==="
-          find "$BASE" -name "connsys_debug_utility.h" 2>/dev/null
-          echo "=== 搜索定义 LIST_SEG_MAX 的文件 ==="
-          grep -rl "LIST_SEG_MAX" "$BASE" 2>/dev/null | head -5
-          echo "=== 搜索定义 WMTCHIN_ADIE 的文件 ==="
-          grep -rl "WMTCHIN_ADIE" "$BASE" 2>/dev/null | head -5
-          echo "=== 搜索定义 nicCmdEventListmode 的文件 ==="
-          grep -rl "nicCmdEventListmode" "$BASE" 2>/dev/null | head -5
+          KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
+
+          echo "=== 1. 在 connectivity 仓库里找 wmt_exp.h ==="
+          find "$BASE" -name "wmt_exp.h" 2>/dev/null || echo "未找到"
+
+          echo "=== 2. 在内核源码树里找 wmt_exp.h ==="
+          find "$KERNEL_DIR/drivers/misc/mediatek/connectivity" -name "wmt_exp.h" 2>/dev/null || echo "未找到"
+
+          echo "=== 3. 在 connectivity 仓库里找 connsys_debug_utility.h ==="
+          find "$BASE" -name "connsys_debug_utility.h" 2>/dev/null || echo "未找到"
+
+          echo "=== 4. 在 connectivity 仓库里搜索 LIST_SEG_MAX 定义 ==="
+          grep -rl "LIST_SEG_MAX" "$BASE" 2>/dev/null | head -5 || echo "未找到"
+
+          echo "=== 5. 在 connectivity 仓库里搜索 WMTCHIN_ADIE 定义 ==="
+          grep -rl "WMTCHIN_ADIE" "$BASE" 2>/dev/null | head -5 || echo "未找到"
+
+          echo "=== 6. 在 connectivity 仓库里搜索 nicCmdEventListmode 定义 ==="
+          grep -rl "nicCmdEventListmode" "$BASE" 2>/dev/null | head -5 || echo "未找到"
+
+          echo "=== 7. 检查 conninfra/include 目录内容 ==="
+          ls -la "$BASE/conninfra/include/" 2>/dev/null | head -20 || echo "conninfra/include 不存在"
+
+          echo "=== 8. 检查 common/common_main/include 目录内容 ==="
+          ls -la "$BASE/common/common_main/include/" 2>/dev/null | head -20 || echo "common/common_main/include 不存在"
 
       - name: Patch gen4m Makefile paths
         run: |

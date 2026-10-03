@@ -25,10 +25,12 @@ jobs:
           path: 'connectivity'
 
       # ========== 3. 下载之前编译内核生成的 Module.symvers ==========
-      - name: Download Module.symvers
+      - name: Download Module.symvers from kernel build run
         uses: actions/download-artifact@v4
         with:
           name: module-symvers
+          run-id: 37089845891          # ← 换成你上传 Module.symvers 那次 run 的 ID
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           path: 'kernel/'
 
       # ========== 4. 安装编译依赖 ==========

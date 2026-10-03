@@ -25,7 +25,7 @@ jobs:
           path: 'connectivity'
 
       # ========== 3. 下载之前编译内核生成的 Module.symvers ==========
-            - name: Download Module.symvers
+      - name: Download Module.symvers
         uses: actions/download-artifact@v4
         with:
           name: module-symvers

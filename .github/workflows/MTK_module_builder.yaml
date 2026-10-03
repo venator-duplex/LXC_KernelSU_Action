@@ -190,11 +190,15 @@ jobs:
 
           export KCFLAGS="-I$BASE/common/common_main/include \
           -I$BASE/common/common_main/linux/include \
+          -I$BASE/common/debug_utility \
           -I$BASE/conninfra/include \
           -I$BASE/conninfra/base/include \
           -I$BASE/conninfra/debug_utility/include \
           -I$BASE/wlan/adaptor \
           -I$BASE/wlan/core/gen4m/include \
+          -I$BASE/wlan/core/gen4m/include/nic \
+          -I$BASE/wlan/core/gen4m/include/mgmt \
+          -I$BASE/wlan/core/gen4m/include/chips \
           -I$BASE/wlan/core/gen4m/os/linux/include"
 
           cd "$GEN4M_DIR"

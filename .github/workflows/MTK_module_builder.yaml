@@ -73,7 +73,7 @@ jobs:
           PATH: "${{ github.workspace }}/clang-aosp/clang-r383902/bin:/usr/bin:/bin"
         run: |
           KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
-          WMT_DIR="$GITHUB_WORKSPACE/connectivity/common"
+          WMT_DIR="$GITHUB_WORKSPACE/connectivity/connectivity/common"
 
           echo "=== 确认 wmt_drv 目录存在 ==="
           ls -la "$WMT_DIR/Makefile" 2>/dev/null || find "$GITHUB_WORKSPACE/connectivity" -name "Makefile" | grep -i "common"
@@ -100,7 +100,7 @@ jobs:
           PATH: "${{ github.workspace }}/clang-aosp/clang-r383902/bin:/usr/bin:/bin"
         run: |
           KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
-          CHRDEV_DIR="$GITHUB_WORKSPACE/connectivity/wlan/adaptor"
+          CHRDEV_DIR="$GITHUB_WORKSPACE/connectivity/connectivity/wlan/adaptor"
 
           echo "=== 确认 wmt_chrdev_wifi 目录存在 ==="
           ls -la "$CHRDEV_DIR/Makefile" 2>/dev/null || find "$GITHUB_WORKSPACE/connectivity/wlan" -name "Makefile" | grep -i "adaptor"
@@ -127,8 +127,8 @@ jobs:
           PATH: "${{ github.workspace }}/clang-aosp/clang-r383902/bin:/usr/bin:/bin"
         run: |
           KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
-          GEN4M_DIR="$GITHUB_WORKSPACE/connectivity/wlan/core/gen4m"
-
+          GEN4M_DIR="$GITHUB_WORKSPACE/connectivity/connectivity/wlan/core/gen4m"
+          
           echo "=== 确认 gen4m 目录存在 ==="
           ls -la "$GEN4M_DIR/Makefile"
 

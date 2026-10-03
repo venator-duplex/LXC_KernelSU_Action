@@ -140,6 +140,17 @@ jobs:
             modules \
             -j$(nproc) 2>&1 | tee "$GITHUB_WORKSPACE/wmt_chrdev_wifi_build.log" || true
 
+      - name: Patch gen4m Makefile paths
+        run: |
+          GEN4M_MAKEFILE="$GITHUB_WORKSPACE/connectivity/connectivity/wlan/core/gen4m/Makefile"
+          BASE="$GITHUB_WORKSPACE/connectivity/connectivity"
+
+          # 把 $(TOP)/vendor/mediatek/kernel_modules/connectivity 替换成实际路径
+          sed -i "s|\$(TOP)/vendor/mediatek/kernel_modules/connectivity|$BASE|g" "$GEN4M_MAKEFILE"
+
+          echo "=== 替换后的关键路径 ==="
+          grep -n "conninfra\|common_main" "$GEN4M_MAKEFILE" | head -20
+
       - name: Build gen4m WLAN driver
         env:
           PATH: "${{ github.workspace }}/clang-aosp/clang-r383902/bin:/usr/bin:/bin"

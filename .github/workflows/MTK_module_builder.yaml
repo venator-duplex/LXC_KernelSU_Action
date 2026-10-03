@@ -140,6 +140,16 @@ jobs:
             modules \
             -j$(nproc) 2>&1 | tee "$GITHUB_WORKSPACE/wmt_chrdev_wifi_build.log" || true
 
+      - name: Create vendor symlink
+        run: |
+          VENDOR_DIR="$GITHUB_WORKSPACE/vendor/mediatek/kernel_modules"
+          mkdir -p "$VENDOR_DIR"
+          ln -sfn "$GITHUB_WORKSPACE/connectivity/connectivity" "$VENDOR_DIR/connectivity"
+          echo "=== 符号链接 ==="
+          ls -la "$VENDOR_DIR/"
+          echo "=== 验证头文件 ==="
+          ls -la "$VENDOR_DIR/connectivity/common/common_main/include/wmt_exp.h" 2>/dev/null || echo "wmt_exp.h 不在预期位置"
+
       # ========== 10. 编译 gen4m（WLAN 核心驱动） ==========
       - name: Build gen4m WLAN driver
         env:

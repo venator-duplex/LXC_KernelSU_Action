@@ -140,6 +140,24 @@ jobs:
             modules \
             -j$(nproc) 2>&1 | tee "$GITHUB_WORKSPACE/wmt_chrdev_wifi_build.log" || true
 
+      - name: Debug header paths
+        run: |
+          BASE="$GITHUB_WORKSPACE/connectivity/connectivity"
+          echo "=== BASE 目录 ==="
+          ls -la "$BASE/"
+          echo "=== common 下有什么 ==="
+          ls -la "$BASE/common/"
+          echo "=== 搜索 wmt_exp.h ==="
+          find "$BASE" -name "wmt_exp.h" 2>/dev/null
+          echo "=== 搜索 connsys_debug_utility.h ==="
+          find "$BASE" -name "connsys_debug_utility.h" 2>/dev/null
+          echo "=== 搜索定义 LIST_SEG_MAX 的文件 ==="
+          grep -rl "LIST_SEG_MAX" "$BASE" 2>/dev/null | head -5
+          echo "=== 搜索定义 WMTCHIN_ADIE 的文件 ==="
+          grep -rl "WMTCHIN_ADIE" "$BASE" 2>/dev/null | head -5
+          echo "=== 搜索定义 nicCmdEventListmode 的文件 ==="
+          grep -rl "nicCmdEventListmode" "$BASE" 2>/dev/null | head -5
+
       - name: Patch gen4m Makefile paths
         run: |
           GEN4M_MAKEFILE="$GITHUB_WORKSPACE/connectivity/connectivity/wlan/core/gen4m/Makefile"

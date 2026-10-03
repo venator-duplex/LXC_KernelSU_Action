@@ -67,6 +67,25 @@ jobs:
           make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- olddefconfig
           make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- modules_prepare
 
+      - name: Setup vendor directory structure
+        run: |
+          BASE="$GITHUB_WORKSPACE/connectivity/connectivity"
+          VENDOR="$GITHUB_WORKSPACE/vendor/mediatek/kernel_modules/connectivity"
+
+          mkdir -p "$VENDOR"
+
+          # 把 connectivity 源码复制到 vendor 路径下
+          cp -r "$BASE/common" "$VENDOR/"
+          cp -r "$BASE/wlan" "$VENDOR/"
+          cp -r "$BASE/conninfra" "$VENDOR/" 2>/dev/null || echo "conninfra 不存在"
+
+          echo "=== vendor 目录结构 ==="
+          ls -la "$VENDOR/"
+          echo "=== common ==="
+          ls -la "$VENDOR/common/" | head -20
+          echo "=== conninfra ==="
+          ls -la "$VENDOR/conninfra/" 2>/dev/null | head -20
+
       # ========== 8. 编译 wmt_drv（WMT 核心驱动） ==========
       - name: Build wmt_drv
         env:

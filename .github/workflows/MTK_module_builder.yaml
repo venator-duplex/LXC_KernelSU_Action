@@ -140,26 +140,22 @@ jobs:
             modules \
             -j$(nproc) 2>&1 | tee "$GITHUB_WORKSPACE/wmt_chrdev_wifi_build.log" || true
 
-      - name: Create vendor symlink
-        run: |
-          VENDOR_DIR="$GITHUB_WORKSPACE/vendor/mediatek/kernel_modules"
-          mkdir -p "$VENDOR_DIR"
-          ln -sfn "$GITHUB_WORKSPACE/connectivity/connectivity" "$VENDOR_DIR/connectivity"
-          echo "=== 符号链接 ==="
-          ls -la "$VENDOR_DIR/"
-          echo "=== 验证头文件 ==="
-          ls -la "$VENDOR_DIR/connectivity/common/common_main/include/wmt_exp.h" 2>/dev/null || echo "wmt_exp.h 不在预期位置"
-
-      # ========== 10. 编译 gen4m（WLAN 核心驱动） ==========
       - name: Build gen4m WLAN driver
         env:
           PATH: "${{ github.workspace }}/clang-aosp/clang-r383902/bin:/usr/bin:/bin"
         run: |
           KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
           GEN4M_DIR="$GITHUB_WORKSPACE/connectivity/connectivity/wlan/core/gen4m"
-          
-          echo "=== 确认 gen4m 目录存在 ==="
-          ls -la "$GEN4M_DIR/Makefile"
+          BASE="$GITHUB_WORKSPACE/connectivity/connectivity"
+
+          export KCFLAGS="-I$BASE/common/common_main/include \
+          -I$BASE/common/common_main/linux/include \
+          -I$BASE/conninfra/include \
+          -I$BASE/conninfra/base/include \
+          -I$BASE/conninfra/debug_utility/include \
+          -I$BASE/wlan/adaptor \
+          -I$BASE/wlan/core/gen4m/include \
+          -I$BASE/wlan/core/gen4m/os/linux/include"
 
           cd "$GEN4M_DIR"
           make -C "$KERNEL_DIR" \

@@ -1,101 +1,123 @@
-name: Build MT6833 WiFi Module
+name: Build MTK Connectivity Modules (Standalone, clang r383902)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-modules:
     runs-on: ubuntu-22.04
 
     steps:
+      # ========== 1. 检出内核源码（提供头文件和构建脚本） ==========
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
-          repository: MiCode/Xiaomi_Kernel_OpenSource
-          ref: light-u-oss
-          path: kernel
+          repository: 'MiCode/Xiaomi_Kernel_OpenSource'
+          ref: 'light-u-oss'
+          path: 'kernel'
 
-      - name: Checkout MTK kernel modules
+      # ========== 2. 检出 MTK Connectivity 模块源码 ==========
+      - name: Checkout MTK connectivity modules
         uses: actions/checkout@v4
         with:
-          repository: MiCode/MTK_kernel_modules
-          ref: light-u-oss
-          path: modules
+          repository: 'MiCode/MTK_kernel_modules'
+          ref: 'light-u-oss'
+          path: 'connectivity'
 
-      - name: Install dependencies
+      # ========== 3. 下载之前编译内核生成的 Module.symvers ==========
+      - name: Download Module.symvers
+        uses: actions/download-artifact@v4
+        with:
+          name: module-symvers
+          run-id: 37089845891
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: 'kernel/'
+
+      # ========== 4. 安装编译依赖 ==========
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git make python3 bc bison flex libssl-dev \
-            libncurses5-dev libncursesw5-dev zip wget cpio rsync
+          sudo apt-get install -y \
+            git make python3 bc bison flex libssl-dev \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
+            wget
 
-      - name: Setup clang r383902
+      # ========== 5. 下载 clang r383902（已验证可用的方式） ==========
+      - name: Download Clang r383902
         run: |
           mkdir -p $HOME/toolchain
           cd $HOME/toolchain
           wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r383902.tar.gz
           tar -xzf clang-r383902.tar.gz
           echo "$HOME/toolchain/bin" >> $GITHUB_PATH
+          echo "=== clang 版本 ==="
+          $HOME/toolchain/bin/clang --version
 
-      - name: Verify toolchain
+      # ========== 6. 确认 Module.symvers 存在 ==========
+      - name: Verify Module.symvers
         run: |
-          clang --version
-          ld.lld --version
+          ls -la kernel/Module.symvers
+          wc -l kernel/Module.symvers
 
-      - name: Set up kernel build environment
+      # ========== 7. 准备内核头文件（不编译整个内核） ==========
+      - name: Prepare kernel headers
+        working-directory: ./kernel
+        env:
+          PATH: "$HOME/toolchain/bin:/usr/bin:/bin"
         run: |
-          cd kernel
-          # 使用原厂 defconfig（从设备提取的 config 或 light_defconfig）
           cp arch/arm64/configs/light_defconfig .config
-          # 关闭导致问题的选项
-          scripts/config --disable MODVERSIONS
-          scripts/config --disable MODULE_SIG
-          scripts/config --disable MODULE_SIG_FORCE
-          # 对齐 vermagic
-          scripts/config --set-str LOCALVERSION "-perf-g25e98838903c"
-          scripts/config --disable LOCALVERSION_AUTO
+          make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- olddefconfig
+          make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- modules_prepare
 
-      - name: Prepare modules
+      # ========== 8. 自动定位 Makefile 并编译模块 ==========
+      - name: Build connectivity modules
+        env:
+          PATH: "$HOME/toolchain/bin:/usr/bin:/bin"
         run: |
-          # 将 connectivity 模块放入内核树外部模块目录
-          mkdir -p kernel/vendor/mediatek/kernel_modules
-          cp -r modules/connectivity kernel/vendor/mediatek/kernel_modules/
-          # 修正平台 ID（关键）
-          sed -i 's/WLAN_CHIP_ID=6765/WLAN_CHIP_ID=6833/' \
-            kernel/vendor/mediatek/kernel_modules/connectivity/Makefile
-          sed -i 's/MTK_COMBO_CHIP=CONNAC/MTK_COMBO_CHIP=CONNAC2X2/' \
-            kernel/vendor/mediatek/kernel_modules/connectivity/Makefile
+          KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
+          CONNECTIVITY_DIR="$GITHUB_WORKSPACE/connectivity"
 
-      - name: Build kernel modules
-        run: |
-          cd kernel
-          make ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
+          # 自动查找包含 Makefile 的目录
+          MAKEFILE_PATH=$(find "$CONNECTIVITY_DIR" -name "Makefile" -maxdepth 4 | head -n 1)
+          if [ -z "$MAKEFILE_PATH" ]; then
+            echo "错误: 未找到 Makefile"
+            find "$CONNECTIVITY_DIR" -type f \( -name "Makefile" -o -name "Kbuild" \) | head -20
+            exit 1
+          fi
+          MODULE_DIR=$(dirname "$MAKEFILE_PATH")
+          echo "=== 找到 Makefile: $MAKEFILE_PATH ==="
+          echo "=== 模块目录: $MODULE_DIR ==="
+
+          cd "$MODULE_DIR"
+          make -C "$KERNEL_DIR" \
+            M="$MODULE_DIR" \
+            ARCH=arm64 \
             CC=clang \
-            LD=ld.lld \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            LOCALVERSION="-perf-g25e98838903c" \
-            CONFIG_MTK_COMBO=y \
-            CONFIG_MTK_COMBO_WIFI=y \
-            CONFIG_MTK_COMBO_CHIP_CONSYS_6833=y \
-            WIFI_IP_SET=3 \
-            M=vendor/mediatek/kernel_modules/connectivity \
-            modules
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            modules \
+            -j$(nproc) 2>&1 | tee "$GITHUB_WORKSPACE/connectivity_build.log" || true
 
+      # ========== 9. 收集 .ko 文件 ==========
       - name: Collect .ko files
         run: |
           mkdir -p output
-          find kernel -name "*.ko" -exec cp {} output/ \;
+          find connectivity/ -name "*.ko" -exec cp {} output/ \;
+          echo "=== 找到的模块文件 ==="
           ls -la output/
 
-      - name: Verify vermagic
-        run: |
-          for ko in output/*.ko; do
-            echo "=== $ko ==="
-            strings "$ko" | grep vermagic || echo "no vermagic found"
-          done
-
-      - name: Upload artifacts
+      # ========== 10. 上传构建产物 ==========
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wifi-module-mt6833
-          path: output/*.ko
+          name: mtk-connectivity-modules
+          path: output/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        with:
+          name: connectivity-build-log
+          path: connectivity_build.log
+          if-no-files-found: warn

@@ -1,4 +1,4 @@
-name: Build MTK Connectivity Modules (Standalone, clang r383902)
+name: Build MTK Connectivity Modules (Standalone)
 
 on:
   workflow_dispatch:
@@ -29,8 +29,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: module-symvers
-          run-id: 37089845891
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           path: 'kernel/'
 
       # ========== 4. 安装编译依赖 ==========
@@ -38,20 +36,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git make python3 bc bison flex libssl-dev \
-            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
-            wget
+            curl wget git make bc bison flex libssl-dev \
+            python3 zip unzip device-tree-compiler kmod
 
-      # ========== 5. 下载 clang r383902（已验证可用的方式） ==========
-      - name: Download Clang r383902
+      # ========== 5. 下载 clang-r383902b 工具链（使用你验证可用的方式） ==========
+      - name: Download Clang r383902b
         run: |
-          mkdir -p $HOME/toolchain
-          cd $HOME/toolchain
-          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r383902.tar.gz
-          tar -xzf clang-r383902.tar.gz
-          echo "$HOME/toolchain/bin" >> $GITHUB_PATH
-          echo "=== clang 版本 ==="
-          $HOME/toolchain/bin/clang --version
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p clang-aosp
+          git clone https://github.com/tomxi1997/Toolchain.git clang-aosp --depth=1
+          echo "=== 工具链目录结构 ==="
+          ls -la "$GITHUB_WORKSPACE/clang-aosp/"
 
       # ========== 6. 确认 Module.symvers 存在 ==========
       - name: Verify Module.symvers
@@ -63,25 +58,30 @@ jobs:
       - name: Prepare kernel headers
         working-directory: ./kernel
         env:
-          PATH: "$HOME/toolchain/bin:/usr/bin:/bin"
+          PATH: "${{ github.workspace }}/clang-aosp/google_clang/clang-r383902b-11.0.2/bin:${{ github.workspace }}/clang-aosp/google_gcc/aarch64-linux-android-4.9/bin:${{ github.workspace }}/clang-aosp/google_gcc/arm-linux-androideabi-4.9/bin:/usr/bin:/bin"
         run: |
           cp arch/arm64/configs/light_defconfig .config
-          make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- olddefconfig
-          make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- modules_prepare
+          make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- olddefconfig
+          make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- modules_prepare
 
       # ========== 8. 自动定位 Makefile 并编译模块 ==========
       - name: Build connectivity modules
         env:
-          PATH: "$HOME/toolchain/bin:/usr/bin:/bin"
+          PATH: "${{ github.workspace }}/clang-aosp/google_clang/clang-r383902b-11.0.2/bin:${{ github.workspace }}/clang-aosp/google_gcc/aarch64-linux-android-4.9/bin:${{ github.workspace }}/clang-aosp/google_gcc/arm-linux-androideabi-4.9/bin:/usr/bin:/bin"
         run: |
           KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
           CONNECTIVITY_DIR="$GITHUB_WORKSPACE/connectivity"
+
+          echo "=== connectivity 目录结构 ==="
+          ls -la "$CONNECTIVITY_DIR"
+
+          echo "=== 搜索 Makefile ==="
+          find "$CONNECTIVITY_DIR" -name "Makefile" -maxdepth 4
 
           # 自动查找包含 Makefile 的目录
           MAKEFILE_PATH=$(find "$CONNECTIVITY_DIR" -name "Makefile" -maxdepth 4 | head -n 1)
           if [ -z "$MAKEFILE_PATH" ]; then
             echo "错误: 未找到 Makefile"
-            find "$CONNECTIVITY_DIR" -type f \( -name "Makefile" -o -name "Kbuild" \) | head -20
             exit 1
           fi
           MODULE_DIR=$(dirname "$MAKEFILE_PATH")
@@ -93,8 +93,8 @@ jobs:
             M="$MODULE_DIR" \
             ARCH=arm64 \
             CC=clang \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CROSS_COMPILE=aarch64-linux-android- \
+            CROSS_COMPILE_ARM32=arm-linux-androideabi- \
             modules \
             -j$(nproc) 2>&1 | tee "$GITHUB_WORKSPACE/connectivity_build.log" || true
 

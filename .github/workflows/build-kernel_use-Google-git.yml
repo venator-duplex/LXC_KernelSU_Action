@@ -229,6 +229,13 @@ jobs:
             make -j$(nproc --all) CC=clang O=out ARCH=${{ env.ARCH }} ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- 
         fi
 
+    - name: Upload Module.symvers
+      uses: actions/upload-artifact@v4
+      with:
+        name: module-symvers
+        path: kernel_workspace/android-kernel/out/Module.symvers
+        retention-days: 90
+
     - name: Check a kernel output files
       run: |
        cd $GITHUB_WORKSPACE/kernel_workspace

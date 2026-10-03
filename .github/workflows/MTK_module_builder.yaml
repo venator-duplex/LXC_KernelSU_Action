@@ -158,7 +158,7 @@ jobs:
           echo "=== precomp.h 前 5 行 ==="
           head -5 "$PRECOMP"
       
-            - name: Patch gen4m source for missing includes
+      - name: Patch gen4m source for missing includes
         run: |
           GEN4M="$GITHUB_WORKSPACE/connectivity/connectivity/wlan/core/gen4m"
           BASE="$GITHUB_WORKSPACE/connectivity/connectivity"

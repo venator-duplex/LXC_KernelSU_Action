@@ -158,50 +158,27 @@ jobs:
           echo "=== precomp.h 前 5 行 ==="
           head -5 "$PRECOMP"
       
-      - name: Build gen4m WLAN driver
-        env:
-          PATH: "${{ github.workspace }}/clang-aosp/clang-r383902/bin:/usr/bin:/bin"
+            - name: Patch gen4m source for missing includes
         run: |
-          KERNEL_DIR="$GITHUB_WORKSPACE/kernel"
-          GEN4M_DIR="$GITHUB_WORKSPACE/connectivity/connectivity/wlan/core/gen4m"
+          GEN4M="$GITHUB_WORKSPACE/connectivity/connectivity/wlan/core/gen4m"
           BASE="$GITHUB_WORKSPACE/connectivity/connectivity"
 
-          echo "=== KERNEL_DIR: $KERNEL_DIR ==="
-          echo "=== GEN4M_DIR: $GEN4M_DIR ==="
-          ls -la "$KERNEL_DIR/Makefile" || echo "内核 Makefile 不存在"
-          ls -la "$GEN4M_DIR/Makefile" || echo "gen4m Makefile 不存在"
+          # 1. 给 plat_priv.c 单独加 wmt_exp.h（它需要 WMTCHIN_ADIE 和 mtk_wcn_wmt_ic_info_get）
+          PLAT_PRIV="$GEN4M/os/linux/plat/mt6833/plat_priv.c"
+          if ! grep -q "wmt_exp.h" "$PLAT_PRIV"; then
+            sed -i '33i #include "wmt_exp.h"' "$PLAT_PRIV"
+          fi
 
-          export KCFLAGS="-I$BASE/common/common_main/include \
-          -I$BASE/common/common_main/linux/include \
-          -I$BASE/common/debug_utility \
-          -I$BASE/conninfra/include \
-          -I$BASE/conninfra/base/include \
-          -I$BASE/conninfra/debug_utility/include \
-          -I$BASE/wlan/adaptor \
-          -I$BASE/wlan/core/gen4m/include \
-          -I$BASE/wlan/core/gen4m/include/nic \
-          -I$BASE/wlan/core/gen4m/include/mgmt \
-          -I$BASE/wlan/core/gen4m/include/chips \
-          -I$BASE/wlan/core/gen4m/os/linux/include \
-          -I$BASE/wlan/core/gen4m/wlan_service/glue/osal/include"
+          # 2. 给 gl_qa_agent.h 加 net_adaption.h（它需要 LIST_SEG_MAX）
+          GL_QA="$GEN4M/os/linux/include/gl_qa_agent.h"
+          if ! grep -q "net_adaption.h" "$GL_QA"; then
+            sed -i '1i #include "net_adaption.h"' "$GL_QA"
+          fi
 
-          cd "$GEN4M_DIR"
-          make -C "$KERNEL_DIR" \
-            M="$GEN4M_DIR" \
-            ARCH=arm64 \
-            CC=clang \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CONFIG_MTK_COMBO_WIFI=m \
-            CONFIG_WLAN_DRV_BUILD_IN=n \
-            CONFIG_MTK_COMBO_WIFI_HIF=axi \
-            CONFIG_WLAN_SERVICE=1 \
-            CONFIG_TEST_ENGINE_OFFLOAD=1 \
-            WLAN_CHIP_ID=6833 \
-            MTK_COMBO_CHIP=CONNAC2X2 \
-            WIFI_IP_SET=3 \
-            modules \
-            -j$(nproc) 2>&1 | tee "$GITHUB_WORKSPACE/gen4m_build.log" || true
+          echo "=== plat_priv.c 前 40 行 ==="
+          head -40 "$PLAT_PRIV"
+          echo "=== gl_qa_agent.h 前 5 行 ==="
+          head -5 "$GL_QA"
       
       # ========== 11. 收集 .ko 文件 ==========
       - name: Collect .ko files
